@@ -1,0 +1,62 @@
+name:                wolf
+version:             0.1.0.0
+description:         Wolfenstein style Ray Caster
+license:             BSD3
+author:              Nick Chapman
+maintainer:          nic@amadido.co.uk
+github:              Nick-Chapman/wolf.git
+
+extra-source-files:
+- README.md
+
+dependencies:
+- array
+- base >= 4.7 && < 5
+- bytestring
+- clock
+- containers
+- extra
+- mtl
+- sdl2
+- sdl2-ttf
+- split
+- text
+- time
+- word8
+
+default-extensions:
+- BangPatterns
+- DataKinds
+- DeriveFunctor
+- DuplicateRecordFields
+- EmptyCase
+- FlexibleContexts
+- GADTs
+- GeneralizedNewtypeDeriving
+- InstanceSigs
+- LambdaCase
+- MultiWayIf
+- NamedFieldPuns
+- NondecreasingIndentation
+- NumericUnderscores
+- QualifiedDo
+- RankNTypes
+- RecursiveDo
+- ScopedTypeVariables
+- StandaloneDeriving
+- TypeApplications
+- TypeFamilies
+- UndecidableInstances
+
+ghc-options:
+- -Werror
+- -Wall
+- -Wno-name-shadowing
+
+library:
+  source-dirs: src
+
+executables:
+  main.exe:
+    main:                app/main.hs
+    dependencies:        wolf
