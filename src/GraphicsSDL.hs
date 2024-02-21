@@ -32,7 +32,7 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
   SDL.initializeAll
   Font.initialize
 
-  let screenW = 224
+  let screenW = 256 --224
   let screenH = 256
 
   let windowSize = V2 w h where
@@ -140,9 +140,9 @@ data DrawAssets = DrawAssets
 
 drawEverything :: DrawAssets -> World -> IO ()
 drawEverything assets@DrawAssets{renderer=r} world = do
-  setColor r DarkGrey
+  setColor r LightGrey
   SDL.clear r
-  setColor r White
+  setColor r Black
   renderPicture assets (World.pictureWorld world)
   SDL.present r
 
@@ -166,7 +166,7 @@ renderPicture a@DrawAssets{renderer=r,sf} = traverse
         renderText a col string (P (V2 (scale x) (scale y)))
           where
             col = if emphasized then Green else Red
-            x = 230
+            x = 270 -- HACK
             y = fromIntegral lineNo * 10
 
 renderText :: DrawAssets -> Colour -> String -> Point V2 CInt -> IO ()
@@ -180,7 +180,7 @@ renderText DrawAssets{renderer=r,font} col string pos = do
   SDL.copy r texture Nothing (Just (Rectangle pos (V2 w h)))
   SDL.destroyTexture texture
 
-data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey
+data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
 
 setColor :: SDL.Renderer -> Colour -> IO ()
 setColor r c = SDL.rendererDrawColor r $= color c
@@ -188,6 +188,7 @@ setColor r c = SDL.rendererDrawColor r $= color c
 color :: Colour -> Color
 color = \case
   DarkGrey -> V4 20 20 20 m
+  LightGrey -> V4 200 200 200 m
   Black -> V4 0 0 0 m
   White -> V4 m m m m
   Red -> V4 m 0 0 m

@@ -10,7 +10,7 @@ main = do
   let Conf{mode,fpsLimit,scaleFactor} = parse args conf0
   case mode of
     ModePlay -> do
-      SDL.main $ SDL.Conf { scaleFactor, fpsLimit, showControls = True }
+      SDL.main $ SDL.Conf { scaleFactor, fpsLimit, showControls = False }
 
 parse :: [String] -> Conf -> Conf
 parse args conf = case args of

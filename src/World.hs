@@ -87,8 +87,7 @@ data Picture
 pictureWorld :: World -> Picture
 pictureWorld w@World{showControls,frameCount,state} =
   Pictures
-  [ --pictureVideoMem mem
-    pictureState state
+  [ pictureState state
   , if showControls then controls else Pictures []
   ]
   where
@@ -149,7 +148,9 @@ pictureState :: State -> Picture
 pictureState State{px,py} = Pictures
   [ Text { lineNo = 2, string = "px : " <> show px, emphasized = False }
   , Text { lineNo = 3, string = "py : " <> show py, emphasized = False }
+  , pictureCanvas
   ]
+
 
 updateState :: Buttons -> State -> State
 updateState b s@State{px,py} = do
@@ -162,3 +163,14 @@ updateState b s@State{px,py} = do
        . (\py -> if But.get But.TurnRight b then py - 1 else py)
       ) py
     }
+
+
+pictureCanvas :: Picture
+pictureCanvas = do
+  Pictures
+    [ Pixel x y
+    | x <- [0..255]
+    , y <- [0..255]
+    , let on = (x `div` 4 + y `div` 4) `mod` 2 == (0::Int)
+    , on
+    ]
