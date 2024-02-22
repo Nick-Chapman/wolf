@@ -7,10 +7,10 @@ main :: IO ()
 main = do
   putStrLn "*wolf*"
   args <- getArgs
-  let Conf{mode,fpsLimit,scaleFactor} = parse args conf0
+  let Conf{mode,fpsLimit,scaleFactor,showControls} = parse args conf0
   case mode of
     ModePlay -> do
-      SDL.main $ SDL.Conf { scaleFactor, fpsLimit, showControls = True }
+      SDL.main $ SDL.Conf { scaleFactor, fpsLimit, showControls }
 
 parse :: [String] -> Conf -> Conf
 parse args conf = case args of
@@ -27,11 +27,13 @@ data Conf = Conf
   { mode :: Mode
   , fpsLimit :: Maybe Int
   , scaleFactor :: Int
+  , showControls :: Bool
   }
 
 conf0 :: Conf
 conf0 = Conf
   { mode = ModePlay
-  , fpsLimit = Just 60 --Nothing
-  , scaleFactor = 4
+  , fpsLimit = Just 30
+  , scaleFactor = 3
+  , showControls = False
   }

@@ -198,5 +198,6 @@ color = \case
   Green -> V4 0 m 0 m
   Blue -> V4 0 0 m m
   Yellow -> V4 m m 0 m
+  Magenta -> V4 m 0 m m
   where
     m = 255
