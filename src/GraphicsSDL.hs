@@ -8,6 +8,7 @@ import Control.Concurrent (threadDelay)
 import Data.List.Extra (groupSort)
 import Data.Map (Map)
 import Foreign.C.Types (CInt)
+import Render (Colour(..),canvasSize)
 import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=))
 import SDL.Font (Font,Color)
 import System.IO (hFlush,stdout)
@@ -17,8 +18,6 @@ import qualified Data.Text as Text (pack)
 import qualified SDL
 import qualified SDL.Font as Font (initialize,load,solid,size)
 import qualified World (initWorld,updateKey,stepFrame,pictureWorld)
-
-import Render (canvasSize)
 
 data Conf = Conf
   { scaleFactor :: Int
@@ -34,18 +33,14 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
   SDL.initializeAll
   Font.initialize
 
-  --let screenW = 256 --224
-  --let screenH = 256
-
-  print canvasSize
   let (screenW,screenH) = canvasSize
 
   let windowSize = V2 w h where
-        w = sf * (screenW + if showControls then 100 else 0)
+        w = sf * (screenW + if showControls then 200 else 0)
         h = sf * screenH
 
   let winConfig = SDL.defaultWindow { SDL.windowInitialSize = windowSize }
-  win <- SDL.createWindow (Text.pack "Space Invaders") $ winConfig
+  win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
   renderer <- SDL.createRenderer win (-1) SDL.defaultRenderer
   font <- Font.load "assets/Acorn Full Nostalgia.ttf" (5 * scaleFactor)
 
@@ -75,6 +70,7 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
                   Just fpsLimit -> do
                     let durationMs = fromIntegral (1000*(after-before))
                     let goalMs = 1000000 `div` fpsLimit
+
                     if (goalMs > durationMs)
                       then threadDelay (goalMs - durationMs)
                       else return ()
@@ -132,6 +128,8 @@ keyMapTable = Map.fromList ys
       KeyEscape -> SDL.KeycodeEscape
       KeyDelete -> SDL.KeycodeDelete
       KeySpace -> SDL.KeycodeSpace
+      KeyLeft -> SDL.KeycodeLeft
+      KeyRight -> SDL.KeycodeRight
       KeyA -> SDL.KeycodeA
       KeyS -> SDL.KeycodeS
       KeyD -> SDL.KeycodeD
@@ -145,9 +143,9 @@ data DrawAssets = DrawAssets
 
 drawEverything :: DrawAssets -> World -> IO ()
 drawEverything assets@DrawAssets{renderer=r} world = do
-  setColor r Blue
+  setColor r DarkGrey
   SDL.clear r
-  setColor r Yellow
+  --setColor r Yellow
   renderPicture assets (World.pictureWorld world)
   SDL.present r
 
@@ -161,7 +159,8 @@ renderPicture a@DrawAssets{renderer=r,sf} = traverse
     traverse = \case
       Pictures pics -> mapM_ traverse pics
 
-      Pixel{x=x0,y=y0} -> do
+      Pixel{x=x0,y=y0,col} -> do
+        setColor r col
         let x = scale (fromIntegral x0)
         let y = scale (fromIntegral y0)
         let rect = SDL.Rectangle (SDL.P (V2 x y)) (V2 sf sf)
@@ -170,9 +169,10 @@ renderPicture a@DrawAssets{renderer=r,sf} = traverse
       Text{lineNo,string,emphasized} -> do
         renderText a col string (P (V2 (scale x) (scale y)))
           where
-            col = if emphasized then Green else Red
-            x = 270 -- HACK
+            col = if emphasized then Green else White
+            x = w+10
             y = fromIntegral lineNo * 10
+            (w,_) = canvasSize
 
 renderText :: DrawAssets -> Colour -> String -> Point V2 CInt -> IO ()
 renderText DrawAssets{renderer=r,font} col string pos = do
@@ -184,8 +184,6 @@ renderText DrawAssets{renderer=r,font} col string pos = do
   let (w,h) = (fromIntegral fw, fromIntegral fh)
   SDL.copy r texture Nothing (Just (Rectangle pos (V2 w h)))
   SDL.destroyTexture texture
-
-data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
 
 setColor :: SDL.Renderer -> Colour -> IO ()
 setColor r c = SDL.rendererDrawColor r $= color c

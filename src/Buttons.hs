@@ -12,6 +12,8 @@ data But
   | Backwards
   | TurnLeft
   | TurnRight
+  | StrafeLeft
+  | StrafeRight
   deriving (Eq,Ord,Show)
 
 newtype Buttons = Buttons { map :: Map But Bool } deriving Show

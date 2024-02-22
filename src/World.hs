@@ -7,8 +7,8 @@ module World
 
 import Buttons (Buttons,buttons0,But)
 import qualified Buttons as But (get,press,release,toggle,But(..))
-
-import qualified Render
+import Render (Colour(..),State,state0,render)
+import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
 
 import Prelude hiding (Int)
 import Foreign.C.Types (CInt)
@@ -18,10 +18,12 @@ data Key
   = KeyEscape
   | KeyDelete
   | KeySpace
-  | KeyA
-  | KeyS
-  | KeyD
+  | KeyLeft
+  | KeyRight
   | KeyW
+  | KeyS
+  | KeyA
+  | KeyD
   deriving (Enum,Bounded)
 
 data KeyMotion = Down | Up
@@ -79,6 +81,8 @@ keyMapping = \case
   (KeyEscape,Down) -> Quit
   (KeyDelete,Down) -> TogglePause
   (KeySpace,Down) -> ToggleControlDisplay
+  (KeyLeft,m) -> Drive But.StrafeLeft m
+  (KeyRight,m) -> Drive But.StrafeRight m
   (KeyA,m) -> Drive But.TurnLeft m
   (KeyS,m) -> Drive But.Backwards m
   (KeyD,m) -> Drive But.TurnRight m
@@ -88,7 +92,7 @@ keyMapping = \case
 data Picture
   = Pictures [Picture]
   | Text { string :: String, lineNo :: Int, emphasized :: Bool }
-  | Pixel { x :: Int, y :: Int }
+  | Pixel { x :: Int, y :: Int, col :: Colour }
 
 pictureWorld :: World -> Picture
 pictureWorld w@World{showControls,frameCount,state} =
@@ -105,7 +109,7 @@ pictureWorld w@World{showControls,frameCount,state} =
 pictureButtons :: World -> Picture
 pictureButtons World{buttons,paused} =
   Pictures [ Text { lineNo, string = describeKeyAndMapping key, emphasized }
-           | (lineNo,key) <- zip [5..] keys
+           | (lineNo,key) <- zip [3..] keys
            , let emphasized = do
                    let action = keyMapping (key,Down)
                    case action of
@@ -124,6 +128,8 @@ instance Show Key where
     KeyEscape -> "[escape]"
     KeyDelete -> "[delete]"
     KeySpace -> "[space]"
+    KeyLeft -> "[left]"
+    KeyRight -> "[right]"
     KeyA -> "A"
     KeyS -> "S"
     KeyD -> "D"
@@ -132,60 +138,28 @@ instance Show Key where
 instance Show KeyAction where
   show = \case
     NoAction -> "NO-ACTION"
-    Quit -> "QUIT"
-    TogglePause -> "PAUSE"
-    ToggleControlDisplay -> "SHOW-KEYS"
+    Quit -> "Quit"
+    TogglePause -> "Pause"
+    ToggleControlDisplay -> "Show Keys"
     Drive but _ -> show but
     Toggle but -> show but
 
 
-data State = State
-  { px :: Int
-  , py :: Int
-  }
-
-state0 :: State
-state0 = State
-  { px = 20
-  , py = 30
-  }
-
 pictureState :: State -> Picture
-pictureState State{px,py} = Pictures
-  [ Text { lineNo = 2, string = "px : " <> show px, emphasized = False }
-  , Text { lineNo = 3, string = "py : " <> show py, emphasized = False }
-  , pictureCanvas Render.STATE
+pictureState s= Pictures
+  [ Text { lineNo = 2, string = show s, emphasized = False }
+  , pictureCanvas s
   ]
 
-
 updateState :: Buttons -> State -> State
-updateState b s@State{px,py} = do
-  s { px =
-      ((\px -> if But.get But.Forwards b then px + 1 else px)
-       . (\px -> if But.get But.Backwards b then px - 1 else px)
-      ) px
-    , py =
-      ((\py -> if But.get But.TurnLeft b then py + 1 else py)
-       . (\py -> if But.get But.TurnRight b then py - 1 else py)
-      ) py
-    }
+updateState b s =
+  ( (if But.get But.Forwards b then State.forwards else id)
+  . (if But.get But.Backwards b then State.backwards else id)
+  . (if But.get But.TurnLeft b then State.turnLeft else id)
+  . (if But.get But.TurnRight b then State.turnRight else id)
+  . (if But.get But.StrafeLeft b then State.strafeLeft else id)
+  . (if But.get But.StrafeRight b then State.strafeRight else id)
+  ) s
 
-
-pictureCanvas :: Render.State -> Picture
-pictureCanvas s = do
-  Pictures
-    [ Pixel x y
-    | (x,y) <- Render.render s
-    ]
-
-{-
-pictureCanvas :: Picture
-pictureCanvas = do
-  Pictures
-    [ Pixel x y
-    | x <- [0..255]
-    , y <- [0..255]
-    , let on = (x `div` 4 + y `div` 4) `mod` 2 == (0::Int)
-    , on
-    ]
--}
+pictureCanvas :: State -> Picture
+pictureCanvas s = Pictures [ Pixel x y col | ((x,y),col) <- render s]

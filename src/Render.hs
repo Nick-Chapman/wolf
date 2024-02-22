@@ -1,7 +1,9 @@
 
 module Render
   ( canvasSize
-  , State(..)
+  , Colour(..)
+  , State, state0
+  , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render
   ) where
 
@@ -13,10 +15,70 @@ tmSize :: P2
 tmSize = (8,8)
 
 tileSize :: Int
-tileSize = 10
+tileSize = 16
+
+type P2 = (Int,Int)
+
+scale :: Int -> P2 -> P2
+scale n (x,y) = (n*x,n*y)
+
+add :: P2 -> P2 -> P2
+add (i,j) (x,y) = (i+x,j+y)
+
+data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
+
+type Pix = (P2,Colour)
 
 canvasSize :: P2
 canvasSize = scale tileSize tmSize
+
+wrapCanvas :: P2 -> P2
+wrapCanvas (i,j) = ((i+w) `mod` w, (j+h) `mod` h)
+  where (w,h) = canvasSize
+
+data State = State
+  { px :: Float
+  , py :: Float
+  , pa :: Angle
+  } deriving Show
+
+type Angle = Float
+
+state0 :: State
+state0 = State
+  { px = fromIntegral (w `div` 2)
+  , py = fromIntegral (h `div` 2)
+  , pa = 0
+  }
+  where (w,h) = canvasSize
+
+forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
+
+(turnLeft,turnRight) = (left,right)
+  where
+    left s@State{pa} = s { pa = pa - angularTurnPerFrame }
+    right s@State{pa} = s { pa = pa + angularTurnPerFrame }
+    angularTurnPerFrame = 0.05
+
+(forwards,backwards,strafeLeft,strafeRight) = (fore,back,left,right)
+  where
+    fore s@State{px,py,pa} =
+      s { px = px + cos pa * stride
+        , py = py + sin pa * stride
+        }
+    back s@State{px,py,pa} =
+      s { px = px - cos pa * stride
+        , py = py - sin pa * stride
+        }
+    left s@State{px,py,pa} =
+      s { px = px + sin pa * stride
+        , py = py - cos pa * stride
+        }
+    right s@State{px,py,pa} =
+      s { px = px - sin pa * stride
+        , py = py + cos pa * stride
+        }
+    stride = 0.5
 
 data Tile = On | Off deriving (Eq)
 
@@ -31,15 +93,34 @@ tileAtPos p@(x,y) = do
     | otherwise
       -> Off
 
-data State = STATE
+render :: State -> [Pix]
+render s = renderTiles ++ renderPerson s
 
-render :: State -> [P2]
-render STATE = do
+renderPerson :: State -> [Pix]
+renderPerson s =
+  [ (wrapCanvas (personPos s),Red)
+  , (wrapCanvas (nosePos s),Blue)
+  ]
+
+personPos :: State -> P2
+personPos State{px,py} = (truncate px,truncate py)
+
+nosePos :: State -> P2
+nosePos State{px,py,pa} = (truncate nx,truncate ny)
+  where
+    nx = px + dx
+    ny = py + dy
+    dx = noseLen * cos pa
+    dy = noseLen * sin pa
+    noseLen = 10
+
+renderTiles :: [Pix]
+renderTiles = do
   tilePos <- allTilePos
   let tile = tileAtPos tilePos
   if (tile == Off) then [] else do
-    pix <- tilePoints tilePos
-    pure pix
+    pos <- tilePoints tilePos
+    pure (pos,Yellow)
 
 allTilePos :: [P2]
 allTilePos = do
@@ -55,12 +136,3 @@ tilePoints pos = do
   yo <- [1..n-2]
   let off = (xo,yo)
   pure (scale n pos `add` off)
-
-
-type P2 = (Int,Int)
-
-scale :: Int -> P2 -> P2
-scale n (x,y) = (n*x,n*y)
-
-add :: P2 -> P2 -> P2
-add (i,j) (x,y) = (i+x,j+y)
