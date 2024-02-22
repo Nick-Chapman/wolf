@@ -18,6 +18,8 @@ import qualified SDL
 import qualified SDL.Font as Font (initialize,load,solid,size)
 import qualified World (initWorld,updateKey,stepFrame,pictureWorld)
 
+import Render (canvasSize)
+
 data Conf = Conf
   { scaleFactor :: Int
   , fpsLimit :: Maybe Int
@@ -32,8 +34,11 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
   SDL.initializeAll
   Font.initialize
 
-  let screenW = 256 --224
-  let screenH = 256
+  --let screenW = 256 --224
+  --let screenH = 256
+
+  print canvasSize
+  let (screenW,screenH) = canvasSize
 
   let windowSize = V2 w h where
         w = sf * (screenW + if showControls then 100 else 0)
@@ -140,9 +145,9 @@ data DrawAssets = DrawAssets
 
 drawEverything :: DrawAssets -> World -> IO ()
 drawEverything assets@DrawAssets{renderer=r} world = do
-  setColor r LightGrey
+  setColor r Blue
   SDL.clear r
-  setColor r Black
+  setColor r Yellow
   renderPicture assets (World.pictureWorld world)
   SDL.present r
 

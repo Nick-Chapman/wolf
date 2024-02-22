@@ -8,6 +8,12 @@ module World
 import Buttons (Buttons,buttons0,But)
 import qualified Buttons as But (get,press,release,toggle,But(..))
 
+import qualified Render
+
+import Prelude hiding (Int)
+import Foreign.C.Types (CInt)
+type Int = CInt
+
 data Key
   = KeyEscape
   | KeyDelete
@@ -148,7 +154,7 @@ pictureState :: State -> Picture
 pictureState State{px,py} = Pictures
   [ Text { lineNo = 2, string = "px : " <> show px, emphasized = False }
   , Text { lineNo = 3, string = "py : " <> show py, emphasized = False }
-  , pictureCanvas
+  , pictureCanvas Render.STATE
   ]
 
 
@@ -165,6 +171,14 @@ updateState b s@State{px,py} = do
     }
 
 
+pictureCanvas :: Render.State -> Picture
+pictureCanvas s = do
+  Pictures
+    [ Pixel x y
+    | (x,y) <- Render.render s
+    ]
+
+{-
 pictureCanvas :: Picture
 pictureCanvas = do
   Pictures
@@ -174,3 +188,4 @@ pictureCanvas = do
     , let on = (x `div` 4 + y `div` 4) `mod` 2 == (0::Int)
     , on
     ]
+-}
