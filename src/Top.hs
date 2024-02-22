@@ -34,6 +34,6 @@ conf0 :: Conf
 conf0 = Conf
   { mode = ModePlay
   , fpsLimit = Just 30
-  , scaleFactor = 2
+  , scaleFactor = 3
   , showControls = False
   }

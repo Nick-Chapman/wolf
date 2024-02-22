@@ -1,6 +1,6 @@
 
 module World
-  ( World, initWorld, stepFrame
+  ( World(..), initWorld, stepFrame
   , Key(..), KeyMotion(..), updateKey
   , Picture(..), pictureWorld
   ) where
@@ -24,17 +24,24 @@ data Key
   | KeyS
   | KeyA
   | KeyD
-  deriving (Enum,Bounded)
+  | KeyEqual
+  | KeyMinus
+  deriving (Enum,Bounded,Show)
 
 data KeyMotion = Down | Up
+  deriving (Show)
 
 data KeyAction
   = NoAction
+  | Quit
   | Drive But KeyMotion
   | Toggle But
   | TogglePause
   | ToggleControlDisplay
-  | Quit
+  | IncreaseSF
+  | DecreaseSF
+  deriving (Show)
+
 
 data World = World
   { paused :: Bool
@@ -42,16 +49,18 @@ data World = World
   , frameCount :: Int
   , buttons :: Buttons
   , state :: State
+  , sf :: Int -- scale factor
   }
 
-initWorld :: IO World
-initWorld = do
+initWorld :: Int -> IO World
+initWorld sf = do
   return $ World
     { paused = False
-    , showControls = True
+    , showControls = False -- TODO: from Config
     , frameCount = 0
     , buttons = buttons0
     , state = state0
+    , sf -- TODO: chosse default here
     }
 
 stepFrame :: World -> IO World
@@ -64,14 +73,16 @@ stepFrame world@World{paused,frameCount,buttons,state} = do
       }
 
 updateKey :: Key -> KeyMotion -> World -> Maybe World
-updateKey key motion w@World{showControls,buttons,paused} =
+updateKey key motion w@World{showControls,buttons,paused,sf} =
   case keyMapping (key,motion) of
     NoAction -> Just w
     Quit -> Nothing
-    TogglePause -> Just $ w { paused = not (paused) }
-    ToggleControlDisplay -> Just $ w { showControls = not showControls }
-    Drive but motion -> Just $ w { buttons = drive motion but buttons }
-    Toggle but -> Just $ w { buttons = But.toggle but buttons }
+    TogglePause -> Just w { paused = not (paused) }
+    ToggleControlDisplay -> Just w { showControls = not showControls }
+    Drive but motion -> Just w { buttons = drive motion but buttons }
+    Toggle but -> Just w { buttons = But.toggle but buttons }
+    IncreaseSF -> Just w { sf = sf+1 }
+    DecreaseSF -> Just w { sf = max (sf-1) 1 }
   where
     drive :: KeyMotion -> But -> Buttons -> Buttons
     drive = \case Down -> But.press; Up -> But.release
@@ -81,6 +92,8 @@ keyMapping = \case
   (KeyEscape,Down) -> Quit
   (KeyDelete,Down) -> TogglePause
   (KeySpace,Down) -> ToggleControlDisplay
+  (KeyEqual,Down) -> IncreaseSF
+  (KeyMinus,Down) -> DecreaseSF
   (KeyLeft,m) -> Drive But.StrafeLeft m
   (KeyRight,m) -> Drive But.StrafeRight m
   (KeyA,m) -> Drive But.TurnLeft m
@@ -123,7 +136,7 @@ pictureButtons World{buttons,paused} =
 describeKeyAndMapping :: Key -> String
 describeKeyAndMapping key = show key <> " : " <> show (keyMapping (key,Down))
 
-instance Show Key where
+{-instance Show Key where
   show = \case
     KeyEscape -> "[escape]"
     KeyDelete -> "[delete]"
@@ -133,16 +146,16 @@ instance Show Key where
     KeyA -> "A"
     KeyS -> "S"
     KeyD -> "D"
-    KeyW -> "W"
+    KeyW -> "W"-}
 
-instance Show KeyAction where
+{-instance Show KeyAction where
   show = \case
     NoAction -> "NO-ACTION"
     Quit -> "Quit"
     TogglePause -> "Pause"
     ToggleControlDisplay -> "Show Keys"
     Drive but _ -> show but
-    Toggle but -> show but
+    Toggle but -> show but-}
 
 
 pictureState :: State -> Picture

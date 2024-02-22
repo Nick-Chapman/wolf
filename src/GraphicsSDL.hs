@@ -8,11 +8,12 @@ import Control.Concurrent (threadDelay)
 import Data.List.Extra (groupSort)
 import Data.Map (Map)
 import Foreign.C.Types (CInt)
-import Render (Colour(..),canvasSize)
+import Render (Colour(..))
+import qualified Render (canvasSize)
 import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=))
 import SDL.Font (Font,Color)
 import System.IO (hFlush,stdout)
-import World (World,Key(..),KeyMotion(Down,Up),Picture(..))
+import World (World(..),Key(..),KeyMotion(Down,Up),Picture(..))
 import qualified Data.Map.Strict as Map (fromList,lookup)
 import qualified Data.Text as Text (pack)
 import qualified SDL
@@ -23,29 +24,33 @@ data Conf = Conf
   { scaleFactor :: Int
   , fpsLimit :: Maybe Int
   , showControls :: Bool
+  } deriving Show
+
+data DrawAssets = DrawAssets
+  { renderer :: Renderer
+  , win :: SDL.Window
+  , font :: Font
+  , canvasSize :: (CInt,CInt)
   }
 
+
 main :: Conf -> IO ()
-main Conf{scaleFactor,fpsLimit,showControls} = do
+main Conf{scaleFactor,fpsLimit} = do
 
   let sf = fromIntegral scaleFactor
+
+  world <- World.initWorld sf
 
   SDL.initializeAll
   Font.initialize
 
-  let (screenW,screenH) = canvasSize
-
-  let windowSize = V2 w h where
-        w = sf * (screenW + if showControls then 200 else 0)
-        h = sf * screenH
-
-  let winConfig = SDL.defaultWindow { SDL.windowInitialSize = windowSize }
+  let winConfig = SDL.defaultWindow
   win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
   renderer <- SDL.createRenderer win (-1) SDL.defaultRenderer
-  font <- Font.load "assets/Acorn Full Nostalgia.ttf" (5 * scaleFactor)
+  font <- Font.load "assets/Acorn Full Nostalgia.ttf" (5 * scaleFactor) -- TODO: dynamic sf
 
   let _flush = hFlush stdout
-  let assets = DrawAssets { renderer, font, sf }
+  let assets = DrawAssets { win, renderer, font, canvasSize = Render.canvasSize }
 
   let
     loop :: World -> IO ()
@@ -53,10 +58,10 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
       before <- SDL.ticks
       --putStr "."; _flush
       events <- SDL.pollEvents
-      case processEvents world events of
+      case processEvents assets world events of
         Nothing -> return () -- quit
         Just world -> do
-
+          resize world assets
           drawEverything assets world
           world <- World.stepFrame world
           maybeDelay
@@ -75,22 +80,32 @@ main Conf{scaleFactor,fpsLimit,showControls} = do
                       then threadDelay (goalMs - durationMs)
                       else return ()
 
-  world <- World.initWorld -- rom
   loop world
 
   SDL.destroyRenderer renderer
   SDL.destroyWindow win
   SDL.quit
 
-processEvents :: World -> [SDL.Event] -> Maybe World
-processEvents world = \case
+
+resize :: World -> DrawAssets -> IO ()
+resize World{sf,showControls} DrawAssets{canvasSize,win} = do
+  let (screenW,screenH) = canvasSize
+  let windowSize = V2 w h where
+        w = sf * (screenW + if showControls then 200 else 0)
+        h = sf * screenH
+  --print ("resize",showControls)
+  SDL.windowSize win $= windowSize
+
+
+processEvents :: DrawAssets -> World -> [SDL.Event] -> Maybe World
+processEvents assets world = \case
   [] -> Just world
   e1:es -> do
     case xEvent e1 of
-      Nothing -> processEvents world es
-      Just (key,motion) ->
+      Nothing -> processEvents assets world es
+      Just (key,motion) -> do
         case World.updateKey key motion world of
-          Just world -> processEvents world es
+          Just world -> processEvents assets world es
           Nothing -> Nothing -- quit
   where
     xEvent :: SDL.Event -> Maybe (Key, KeyMotion)
@@ -134,23 +149,21 @@ keyMapTable = Map.fromList ys
       KeyS -> SDL.KeycodeS
       KeyD -> SDL.KeycodeD
       KeyW -> SDL.KeycodeW
-
-data DrawAssets = DrawAssets
-  { renderer :: Renderer
-  , font :: Font
-  , sf :: CInt -- scale factor
-  }
+      KeyEqual -> SDL.KeycodeEquals
+      KeyMinus -> SDL.KeycodeMinus
 
 drawEverything :: DrawAssets -> World -> IO ()
 drawEverything assets@DrawAssets{renderer=r} world = do
   setColor r DarkGrey
   SDL.clear r
   --setColor r Yellow
-  renderPicture assets (World.pictureWorld world)
+  renderPicture assets world (World.pictureWorld world)
   SDL.present r
 
-renderPicture :: DrawAssets -> Picture  -> IO ()
-renderPicture a@DrawAssets{renderer=r,sf} = traverse
+renderPicture :: DrawAssets -> World -> Picture  -> IO ()
+renderPicture a@DrawAssets{renderer=r} World{sf} picture = do
+  --print ("renderPicture",sf)
+  traverse picture
   where
     scale :: CInt -> CInt
     scale x = sf * x
@@ -172,7 +185,7 @@ renderPicture a@DrawAssets{renderer=r,sf} = traverse
             col = if emphasized then Green else White
             x = w+10
             y = fromIntegral lineNo * 10
-            (w,_) = canvasSize
+            (w,_) = Render.canvasSize
 
 renderText :: DrawAssets -> Colour -> String -> Point V2 CInt -> IO ()
 renderText DrawAssets{renderer=r,font} col string pos = do
