@@ -93,9 +93,12 @@ tileAtPos :: P2 -> Tile
 tileAtPos p@(x,y) = do
   let (w,h) = tmSize
   if
-    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
-      -> On
+    | p `elem` [ (9,0), (10,0) ] -> Off -- hole in the outer wall
     | x == 0 || y == 0  || x == w-1 || y == h-1
+      -> On
+    | x >= 12 && x <= 13 && y >= 10 && y <= 11
+      -> On
+    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
       -> On
     | otherwise
       -> Off
@@ -105,49 +108,88 @@ render s =
   renderTiles
   -- ++ renderIntersections
   ++ renderPerson s
-  ++ renderLooking s
+  ++ renderGaze s
 
+renderGaze :: State -> [Pix]
+renderGaze s = do
+  --deg <- [-15,-10,-5,0,5,10,15]
+  deg <- take 31 [-15,-14..]
+  renderLooking (toAngle deg) s
+  where
+    toAngle :: Int -> Float
+    toAngle deg = fromIntegral deg * 2 * pi / 360.0
 
-renderLooking :: State -> [Pix]
-renderLooking s = do
-  (x,y) <- castRaysH s ++ castRaysV s
-  let tx = truncate x `div` tileSize
-  let ty = truncate y `div` tileSize
-  let tile = tileAtPos (tx,ty)
-  let hit = tile == On
-  let col = if hit then Green else Magenta
-  let pos = (truncate x,truncate y)
-  pure (pos,col)
+renderLooking :: Angle -> State -> [Pix]
+renderLooking angle s = do
+  let (_miss,hit) = castRays angle s
+  []
+    ++ [ (trunc2 p, Magenta) | p <- _miss ]
+    ++ case hit of Nothing -> []; Just p -> [ (trunc2 p, Green) ]
+
+distanceSquared :: Point -> Point -> Float
+distanceSquared (x1,y1) (x2,y2) =
+  square (abs (x1 - x2))
+  + square (abs (y1 - y2))
+  where square n = n * n
+
+trunc2 :: Point -> P2
+trunc2 (x,y) = (truncate x, truncate y)
 
 type Point = (Float,Float)
 
-castRaysH :: State -> [Point]
-castRaysH State{px,py,pa} = do
-  let (maxSteps,_) = tmSize
-  let lookingRight = cos pa > 0
+castRays :: Angle -> State -> ([Point],Maybe Point)
+castRays angle s@State{px,py} = do
+  let hpoints = take (fromIntegral n) $ castRaysH angle s where (n,_) = tmSize
+  let vpoints = take (fromIntegral n) $ castRaysV angle s where (_,n) = tmSize
+  let hchecked = [ (p, onTile p) | p <- hpoints ]
+  let vchecked = [ (p, onTile p) | p <- vpoints ]
+  let miss = [ p
+             | (p,_) <-
+               takeWhile (\(_,b) -> not b) hchecked
+               ++ takeWhile (\(_,b) -> not b) vchecked
+             ]
+  let hit =
+        case ( [ p | (p,b) <- hchecked, b ], [ p | (p,b) <- vchecked, b ] ) of
+          ([],[]) -> Nothing
+          ([],p:_) -> Just p
+          (p:_,[]) -> Just p
+          (p1:_,p2:_) -> do
+            let d1 = distanceSquared p1 (px,py)
+            let d2 = distanceSquared p2 (px,py)
+            Just (if d1 < d2 then p1 else p2)
+  (miss,hit)
+
+onTile :: Point -> Bool
+onTile (x,y) = do
+  let tx = truncate x `div` tileSize
+  let ty = truncate y `div` tileSize
+  let tile = tileAtPos (tx,ty)
+  (tile == On)
+
+castRaysH :: Angle -> State -> [Point]
+castRaysH angle State{px,py,pa} = do
+  let a = angle + pa
+  let lookingRight = cos a > 0
   let x0 :: Float = snapF px + (if lookingRight then 0 else -1)
   let dx :: Float = x0 - px
-  i <- take (fromIntegral maxSteps) (if lookingRight then [1..] else [0,-1..])
+  i <- if lookingRight then [1..] else [0,-1..]
   let x :: Float = x0 + fromIntegral (i * tileSize)
-  let y :: Float = py + tan pa * (dx + fromIntegral (i * tileSize))
+  let y :: Float = py + tan a * (dx + fromIntegral (i * tileSize))
   pure (x,y)
 
-
-castRaysV :: State -> [Point]
-castRaysV State{px,py,pa} = do
-  let (_,maxSteps) = tmSize
-  let lookingUp = sin pa < 0
+castRaysV :: Angle -> State -> [Point]
+castRaysV angle State{px,py,pa} = do
+  let a = angle + pa
+  let lookingUp = sin a < 0
   let y0 :: Float = snapF py + (if lookingUp then -1 else 0)
   let dy :: Float = y0 - py
-  i :: Int <- take (fromIntegral maxSteps) (if lookingUp then [0,-1..] else [1..])
+  i :: Int <- if lookingUp then [0,-1..] else [1..]
   let y :: Float = y0 + fromIntegral (i * tileSize)
-  let x :: Float = px + (1 / tan pa) * (dy + fromIntegral (i * tileSize))
+  let x :: Float = px + (1 / tan a) * (dy + fromIntegral (i * tileSize))
   pure (x,y)
-
 
 snapF :: Float -> Float
 snapF i = fromIntegral ((truncate i `div` tileSize) * tileSize)
-
 
 renderPerson :: State -> [Pix]
 renderPerson s =
@@ -167,7 +209,6 @@ nosePos State{px,py,pa} = (truncate nx,truncate ny)
     dy = noseLen * sin pa
     noseLen = 3-}
 
-
 {-renderIntersections :: [Pix]
 renderIntersections = do
   let n = tileSize
@@ -176,7 +217,6 @@ renderIntersections = do
   yo <- [0,n-1]
   let off = (xo,yo)
   pure ((scale n pos `add` off),LightGrey)-}
-
 
 renderTiles :: [Pix]
 renderTiles = do
