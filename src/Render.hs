@@ -9,15 +9,41 @@ module Render
 
 import Text.Printf (printf)
 
+import Data.List (sortBy)
+import Data.Ord (comparing)
+
+
 import Prelude hiding (Int)
 import Foreign.C.Types (CInt)
 type Int = CInt
 
-tmSize :: P2
-tmSize = (20,15)
+canvasSize :: P2
+canvasSize = (w+w,h) where (w,h) = planSize
 
 tileSize :: Int
 tileSize = 16
+
+tmSize :: P2
+tmSize = (15,15)
+
+planSize :: P2
+planSize = scale tileSize tmSize
+
+data Tile = On | Off deriving (Eq)
+
+tileAtPos :: P2 -> Tile
+tileAtPos p@(x,y) = do
+  let (w,h) = tmSize
+  if
+    | p `elem` [ (9,0), (10,0) ] -> Off -- hole in the outer wall
+    | x == 0 || y == 0  || x == w-1 || y == h-1
+      -> On
+    | x >= 10 && x <= 11 && y >= 10 && y <= 11
+      -> On
+    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
+      -> On
+    | otherwise
+      -> Off
 
 type P2 = (Int,Int)
 
@@ -31,12 +57,9 @@ data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
 
 type Pix = (P2,Colour)
 
-canvasSize :: P2
-canvasSize = scale tileSize tmSize
-
-wrapCanvas :: P2 -> P2
-wrapCanvas (i,j) = ((i+w) `mod` w, (j+h) `mod` h)
-  where (w,h) = canvasSize
+wrapPlan :: P2 -> P2
+wrapPlan (i,j) = ((i+w) `mod` w, (j+h) `mod` h)
+  where (w,h) = planSize
 
 data State = State
   { px :: Float
@@ -57,7 +80,7 @@ state0 = State
   , py = fromIntegral ((h+tileSize) `div` 2)
   , pa = 0
   }
-  where (w,h) = canvasSize
+  where (w,h) = planSize
 
 forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
 
@@ -87,44 +110,64 @@ forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
         }
     stride = 2 -- TODO: should be scaled via fps
 
-data Tile = On | Off deriving (Eq)
-
-tileAtPos :: P2 -> Tile
-tileAtPos p@(x,y) = do
-  let (w,h) = tmSize
-  if
-    | p `elem` [ (9,0), (10,0) ] -> Off -- hole in the outer wall
-    | x == 0 || y == 0  || x == w-1 || y == h-1
-      -> On
-    | x >= 12 && x <= 13 && y >= 10 && y <= 11
-      -> On
-    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
-      -> On
-    | otherwise
-      -> Off
-
 render :: State -> [Pix]
 render s =
+  let off = (w,0) where (w,_) = planSize in
   renderTiles
-  -- ++ renderIntersections
   ++ renderPerson s
-  ++ renderGaze s
+  ++ renderGaze True s
+  ++ [ (p `add` off,c) | (p,c) <- renderWalls s ]
 
-renderGaze :: State -> [Pix]
-renderGaze s = do
-  --deg <- [-15,-10,-5,0,5,10,15]
+{-renderWalls :: State -> [Pix]
+renderWalls s = do
+  (_,popt) <- gazeHeights s
+  case popt of
+    Nothing -> []
+    Just p -> [ (trunc2 p, Green) ]-}
+
+renderWalls :: State -> [Pix]
+renderWalls s@State{px,py} = do
+  (x,popt) <- gazeHeights s
+  case popt of
+    Nothing -> []
+    Just p -> do
+      let d = sqrt (distanceSquared (px,py) p)
+      let (_,h) = planSize
+      let height = min 500 (1000 / d)
+      let hh = fromIntegral h / 2
+      let y1 = truncate (hh - height)
+      let y2 = truncate (hh + height)
+      [ ((x,y1), Green), ((x,y2), Green)]
+
+gazeHeights :: State -> [(Int,Maybe Point)]
+gazeHeights s = do
+  let viewAngle :: Float = 30.0
+  let (w,_) = planSize
+  i :: Int <- [0..w-1]
+  let scale :: Float = fromIntegral w / viewAngle
+  let c :: Int = i - (w `div` 2)
+  let deg = fromIntegral c / scale
+  let angle :: Float = toAngleF deg
+  let (_,hit) = castRays angle s
+  pure (i,hit)
+
+toAngleF :: Float -> Float
+toAngleF deg = deg * 2 * pi / 360.0
+
+renderGaze :: Bool -> State -> [Pix]
+renderGaze withMisses s = do
   deg <- take 31 [-15,-14..]
-  renderLooking (toAngle deg) s
-  where
-    toAngle :: Int -> Float
-    toAngle deg = fromIntegral deg * 2 * pi / 360.0
+  renderLooking withMisses (toAngle deg) s
 
-renderLooking :: Angle -> State -> [Pix]
-renderLooking angle s = do
-  let (_miss,hit) = castRays angle s
+toAngle :: Int -> Float
+toAngle deg = fromIntegral deg * 2 * pi / 360.0
+
+renderLooking :: Bool -> Angle -> State -> [Pix]
+renderLooking withMisses angle s = do
+  let (miss,hit) = castRays angle s
   []
-    ++ [ (trunc2 p, Magenta) | p <- _miss ]
-    ++ case hit of Nothing -> []; Just p -> [ (trunc2 p, Green) ]
+    ++ (if withMisses then [ ((trunc2 p), Magenta) | p <- miss ] else [])
+    ++ case hit of Nothing -> []; Just p -> [ ((trunc2 p), Green) ]
 
 distanceSquared :: Point -> Point -> Float
 distanceSquared (x1,y1) (x2,y2) =
@@ -141,23 +184,13 @@ castRays :: Angle -> State -> ([Point],Maybe Point)
 castRays angle s@State{px,py} = do
   let hpoints = take (fromIntegral n) $ castRaysH angle s where (n,_) = tmSize
   let vpoints = take (fromIntegral n) $ castRaysV angle s where (_,n) = tmSize
-  let hchecked = [ (p, onTile p) | p <- hpoints ]
-  let vchecked = [ (p, onTile p) | p <- vpoints ]
-  let miss = [ p
-             | (p,_) <-
-               takeWhile (\(_,b) -> not b) hchecked
-               ++ takeWhile (\(_,b) -> not b) vchecked
-             ]
-  let hit =
-        case ( [ p | (p,b) <- hchecked, b ], [ p | (p,b) <- vchecked, b ] ) of
-          ([],[]) -> Nothing
-          ([],p:_) -> Just p
-          (p:_,[]) -> Just p
-          (p1:_,p2:_) -> do
-            let d1 = distanceSquared p1 (px,py)
-            let d2 = distanceSquared p2 (px,py)
-            Just (if d1 < d2 then p1 else p2)
+  let points = hpoints ++ vpoints
+  let checked = [ (p, distanceSquared (px,py) p, onTile p) | p <- points ]
+  let ordered = sortBy (comparing (\(_,d,_) -> d)) checked
+  let miss = [ p | (p,_,_) <- takeWhile (\(_,_,b) -> not b) ordered]
+  let hit = case [ p | (p,_,b) <- ordered, b ] of [] -> Nothing; p:_ -> Just p
   (miss,hit)
+
 
 onTile :: Point -> Bool
 onTile (x,y) = do
@@ -193,30 +226,11 @@ snapF i = fromIntegral ((truncate i `div` tileSize) * tileSize)
 
 renderPerson :: State -> [Pix]
 renderPerson s =
-  [ (wrapCanvas (personPos s),Red)
---  , (wrapCanvas (nosePos s),Blue)
+  [ (wrapPlan (personPos s),Red)
   ]
 
 personPos :: State -> P2
 personPos State{px,py} = (truncate px,truncate py)
-
-{-nosePos :: State -> P2
-nosePos State{px,py,pa} = (truncate nx,truncate ny)
-  where
-    nx = px + dx
-    ny = py + dy
-    dx = noseLen * cos pa
-    dy = noseLen * sin pa
-    noseLen = 3-}
-
-{-renderIntersections :: [Pix]
-renderIntersections = do
-  let n = tileSize
-  pos <- allTilePos
-  xo <- [0,n-1]
-  yo <- [0,n-1]
-  let off = (xo,yo)
-  pure ((scale n pos `add` off),LightGrey)-}
 
 renderTiles :: [Pix]
 renderTiles = do
