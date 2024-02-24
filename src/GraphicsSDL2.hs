@@ -7,7 +7,7 @@ module GraphicsSDL2
 import Control.Concurrent (threadDelay)
 import Data.Map (Map)
 import Prelude hiding (Int)
-import Render (Colour(..),State,state0,render)
+import Render (Colour(..),State,state0,render,dump)
 import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
@@ -69,7 +69,7 @@ main Conf{scaleFactor,fpsLimit} = do
       before <- SDL.ticks
       --putStr "."; _flush
       events <- SDL.pollEvents
-      case processEvents world events of
+      processEvents world events >>= \case
         Nothing -> return () -- quit
         Just world -> do
           resize world assets
@@ -113,16 +113,16 @@ updateState b s =
   . (if getB StrafeRight b then State.strafeRight else id)
   ) s
 
-processEvents :: World -> [SDL.Event] -> Maybe World
+processEvents :: World -> [SDL.Event] -> IO (Maybe World)
 processEvents world = \case
-  [] -> Just world
+  [] -> pure (Just world)
   e1:es -> do
     case xEvent e1 of
       Nothing -> processEvents world es
       Just (key,motion) -> do
-        case updateKey key motion world of
+        updateKey key motion world >>= \case
           Just world -> processEvents world es
-          Nothing -> Nothing -- quit
+          Nothing -> pure Nothing -- quit
   where
     xEvent :: SDL.Event -> Maybe (Keycode, InputMotion) -- TODO: inline
     xEvent = \case
@@ -144,10 +144,12 @@ data KeyAction -- TODO: does this have much value?
   | ToggleControlDisplay
   | IncreaseSF
   | DecreaseSF
+  | Dump
   deriving (Show)
 
 keyMapping :: (Keycode,InputMotion) -> KeyAction
 keyMapping = \case
+  (KeycodeReturn,Pressed) -> Dump
   (KeycodeEscape,Pressed) -> Quit
   (KeycodeDelete,Pressed) -> TogglePause
   (KeycodeSpace,Pressed) -> ToggleControlDisplay
@@ -161,16 +163,17 @@ keyMapping = \case
   (KeycodeW,m) -> Drive Forwards m
   _ -> NoAction
 
-updateKey :: Keycode -> InputMotion -> World -> Maybe World
-updateKey key motion w@World{w_showControls,buttons,paused,sf} =
+updateKey :: Keycode -> InputMotion -> World -> IO (Maybe World)
+updateKey key motion w@World{w_showControls,buttons,paused,sf,state} =
   case keyMapping (key,motion) of
-    NoAction -> Just w
-    Quit -> Nothing
-    TogglePause -> Just w { paused = not (paused) }
-    ToggleControlDisplay -> Just w { w_showControls = not w_showControls }
-    Drive but motion -> Just w { buttons = drive motion but buttons }
-    IncreaseSF -> Just w { sf = sf+1 }
-    DecreaseSF -> Just w { sf = max (sf-1) 1 }
+    NoAction -> pure $ Just w
+    Quit -> pure $ Nothing
+    TogglePause -> pure $ Just w { paused = not (paused) }
+    ToggleControlDisplay -> pure $ Just w { w_showControls = not w_showControls }
+    Drive but motion -> pure $ Just w { buttons = drive motion but buttons }
+    IncreaseSF -> pure $ Just w { sf = sf+1 }
+    DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
+    Dump -> do Render.dump state; pure (Just w)
   where
     drive :: InputMotion -> But -> Buttons -> Buttons
     drive = \case Pressed -> pressB; Released -> releaseB

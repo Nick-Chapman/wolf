@@ -5,6 +5,7 @@ module Render
   , State, state0
   , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render
+  , dump
   ) where
 
 import Text.Printf (printf)
@@ -16,6 +17,9 @@ import Data.Ord (comparing)
 import Prelude hiding (Int)
 import Foreign.C.Types (CInt)
 type Int = CInt
+
+viewAngle :: Int
+viewAngle = 60
 
 canvasSize :: P2
 canvasSize = (w+w,h) where (w,h) = planSize
@@ -36,7 +40,9 @@ tileAtPos p@(x,y) = do
   let (w,h) = tmSize
   if
     | p `elem` [ (9,0), (10,0) ] -> Off -- hole in the outer wall
-    | x == 0 || y == 0  || x == w-1 || y == h-1
+    | (x == 0 || x == w-1) && (y >= 0 && y <= h-1)
+      -> On
+    | (x >= 0 && x <= w-1) && (y == 0 || y == h-1)
       -> On
     | x >= 10 && x <= 11 && y >= 10 && y <= 11
       -> On
@@ -54,6 +60,7 @@ add :: P2 -> P2 -> P2
 add (i,j) (x,y) = (i+x,j+y)
 
 data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey | Magenta
+  deriving Show
 
 type Pix = (P2,Colour)
 
@@ -69,8 +76,7 @@ data State = State
 
 instance Show State where
   show State{px,py,pa} =
-    printf "(%f,%f)@%f [%s]" px py pa (show r)
-    where r = cos pa > 0
+    printf "(%f,%f)@%f" px py pa
 
 type Angle = Float
 
@@ -141,10 +147,9 @@ renderWalls s@State{px,py} = do
 
 gazeHeights :: State -> [(Int,Maybe Point)]
 gazeHeights s = do
-  let viewAngle :: Float = 30.0
   let (w,_) = planSize
   i :: Int <- [0..w-1]
-  let scale :: Float = fromIntegral w / viewAngle
+  let scale :: Float = fromIntegral w / fromIntegral viewAngle
   let c :: Int = i - (w `div` 2)
   let deg = fromIntegral c / scale
   let angle :: Float = toAngleF deg
@@ -156,7 +161,8 @@ toAngleF deg = deg * 2 * pi / 360.0
 
 renderGaze :: Bool -> State -> [Pix]
 renderGaze withMisses s = do
-  deg <- take 31 [-15,-14..]
+  i <- [0..viewAngle-1]
+  let deg = i - (viewAngle `div` 2)
   renderLooking withMisses (toAngle deg) s
 
 toAngle :: Int -> Float
@@ -254,3 +260,8 @@ tilePoints pos = do
   yo <- [1..n-2]
   let off = (xo,yo)
   pure (scale n pos `add` off)
+
+
+dump :: State -> IO ()
+dump s@State{pa=_} = do
+  print ("dump",s)
