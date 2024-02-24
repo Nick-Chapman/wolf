@@ -139,7 +139,7 @@ renderWalls s@State{px,py} = do
   (x,popt) <- gazeHeights s
   case popt of
     Nothing -> []
-    Just p -> do
+    Just (p,side) -> do
       let d = sqrt (distanceSquared (px,py) p)
       let (_,h) = canvasSize
       let height = min (fromIntegral h * 0.9) (fromIntegral h * 5 / d)
@@ -147,11 +147,12 @@ renderWalls s@State{px,py} = do
       let y1 = truncate (hh - height)
       let y2 = truncate (hh + height)
       --let ys = [y1,y2] -- just top & bottom of wall
+      let col = case side of N -> Green; S -> Green; E -> Blue; W -> Blue
       let ys = [y1..y2] -- just top & bottom of wall
-      [ ((x,y), Green) | y <- ys ]
+      [ ((x,y), col) | y <- ys ]
 
 
-gazeHeights :: State -> [(Int,Maybe Point)]
+gazeHeights :: State -> [(Int,Maybe (Point,Side))]
 gazeHeights s = do
   let (w,_) = planSize
   i :: Int <- [0..w-1]
@@ -179,7 +180,7 @@ renderLooking withMisses angle s = do
   let (miss,hit) = castRays angle s
   []
     ++ (if withMisses then [ ((trunc2 p), Magenta) | p <- miss ] else [])
-    ++ case hit of Nothing -> []; Just p -> [ ((trunc2 p), Green) ]
+    ++ case hit of Nothing -> []; Just (p,_) -> [ ((trunc2 p), Green) ]
 
 distanceSquared :: Point -> Point -> Float
 distanceSquared (x1,y1) (x2,y2) =
@@ -192,17 +193,18 @@ trunc2 (x,y) = (truncate x, truncate y)
 
 type Point = (Float,Float)
 
-castRays :: Angle -> State -> ([Point],Maybe Point)
+castRays :: Angle -> State -> ([Point],Maybe (Point,Side))
 castRays angle s@State{px,py} = do
   let hpoints = take (fromIntegral n) $ castRaysH angle s where (n,_) = tmSize
   let vpoints = take (fromIntegral n) $ castRaysV angle s where (_,n) = tmSize
   let points = hpoints ++ vpoints
-  let checked = [ (p, distanceSquared (px,py) p, onTile p side)
+  let checked = [ (p,side, distanceSquared (px,py) p, onTile p side)
                 | (p,side) <- points
                 ]
-  let ordered = sortBy (comparing (\(_,d,_) -> d)) checked
-  let miss = [ p | (p,_,_) <- takeWhile (\(_,_,b) -> not b) ordered]
-  let hit = case [ p | (p,_,b) <- ordered, b ] of [] -> Nothing; p:_ -> Just p
+  let ordered = sortBy (comparing (\(_,_,d,_) -> d)) checked -- TODO: terrible
+  let miss = [ p | (p,_,_,_) <- takeWhile (\(_,_,_,b) -> not b) ordered]
+  let hit = case [ (p,side)
+                 | (p,side,_,b) <- ordered, b ] of [] -> Nothing; x:_ -> Just x
   (miss,hit)
 
 data Side = N | E | S | W
