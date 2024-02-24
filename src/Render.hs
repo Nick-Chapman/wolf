@@ -27,7 +27,7 @@ canvasSize :: P2
 canvasSize = (w+w,h) where (w,h) = planSize
 
 tileSize :: Int
-tileSize = 16
+tileSize = 20
 
 tmSize :: P2
 tmSize = (15,15)
@@ -116,7 +116,8 @@ forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
       s { px = px - sin pa * stride
         , py = py + cos pa * stride
         }
-    stride = 2 -- TODO: should be scaled via fps
+    stride = 2 * (fromIntegral tileSize / 16) * (30 / fps)
+    fps = 20
 
 render :: State -> [Pix]
 render s =
@@ -140,8 +141,8 @@ renderWalls s@State{px,py} = do
     Nothing -> []
     Just p -> do
       let d = sqrt (distanceSquared (px,py) p)
-      let (_,h) = planSize
-      let height = min 500 (1000 / d)
+      let (_,h) = canvasSize
+      let height = min (fromIntegral h * 0.9) (fromIntegral h * 5 / d)
       let hh = fromIntegral h / 2
       let y1 = truncate (hh - height)
       let y2 = truncate (hh + height)
