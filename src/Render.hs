@@ -9,14 +9,16 @@ module Render
   ) where
 
 import Text.Printf (printf)
-
 import Data.List (sortBy)
 import Data.Ord (comparing)
-
 
 import Prelude hiding (Int)
 import Foreign.C.Types (CInt)
 type Int = CInt
+
+dump :: State -> IO ()
+dump s = do
+  print ("dump",s)
 
 viewAngle :: Int
 viewAngle = 60
@@ -191,41 +193,48 @@ castRays angle s@State{px,py} = do
   let hpoints = take (fromIntegral n) $ castRaysH angle s where (n,_) = tmSize
   let vpoints = take (fromIntegral n) $ castRaysV angle s where (_,n) = tmSize
   let points = hpoints ++ vpoints
-  let checked = [ (p, distanceSquared (px,py) p, onTile p) | p <- points ]
+  let checked = [ (p, distanceSquared (px,py) p, onTile p side)
+                | (p,side) <- points
+                ]
   let ordered = sortBy (comparing (\(_,d,_) -> d)) checked
   let miss = [ p | (p,_,_) <- takeWhile (\(_,_,b) -> not b) ordered]
   let hit = case [ p | (p,_,b) <- ordered, b ] of [] -> Nothing; p:_ -> Just p
   (miss,hit)
 
+data Side = N | E | S | W
 
-onTile :: Point -> Bool
-onTile (x,y) = do
-  let tx = truncate x `div` tileSize
-  let ty = truncate y `div` tileSize
+onTile :: Point -> Side -> Bool
+onTile (x,y) side = do
+  let x' = case side of E -> x-1; _ -> x
+  let y' = case side of S -> y-1; _ -> y
+  let tx = truncate x' `div` tileSize
+  let ty = truncate y' `div` tileSize
   let tile = tileAtPos (tx,ty)
   (tile == On)
 
-castRaysH :: Angle -> State -> [Point]
+castRaysH :: Angle -> State -> [(Point,Side)]
 castRaysH angle State{px,py,pa} = do
   let a = angle + pa
   let lookingRight = cos a > 0
-  let x0 :: Float = snapF px + (if lookingRight then 0 else -1)
+  let side = if lookingRight then W else E
+  let x0 :: Float = snapF px
   let dx :: Float = x0 - px
   i <- if lookingRight then [1..] else [0,-1..]
   let x :: Float = x0 + fromIntegral (i * tileSize)
   let y :: Float = py + tan a * (dx + fromIntegral (i * tileSize))
-  pure (x,y)
+  pure ((x,y),side)
 
-castRaysV :: Angle -> State -> [Point]
+castRaysV :: Angle -> State -> [(Point,Side)]
 castRaysV angle State{px,py,pa} = do
   let a = angle + pa
-  let lookingUp = sin a < 0
-  let y0 :: Float = snapF py + (if lookingUp then -1 else 0)
+  let lookingDown = sin a > 0
+  let side = if lookingDown then N else S
+  let y0 :: Float = snapF py
   let dy :: Float = y0 - py
-  i :: Int <- if lookingUp then [0,-1..] else [1..]
+  i :: Int <- if lookingDown then [1..] else [0,-1..]
   let y :: Float = y0 + fromIntegral (i * tileSize)
   let x :: Float = px + (1 / tan a) * (dy + fromIntegral (i * tileSize))
-  pure (x,y)
+  pure ((x,y),side)
 
 snapF :: Float -> Float
 snapF i = fromIntegral ((truncate i `div` tileSize) * tileSize)
@@ -260,8 +269,3 @@ tilePoints pos = do
   yo <- [1..n-2]
   let off = (xo,yo)
   pure (scale n pos `add` off)
-
-
-dump :: State -> IO ()
-dump s@State{pa=_} = do
-  print ("dump",s)
