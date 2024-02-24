@@ -146,7 +146,10 @@ renderWalls s@State{px,py} = do
       let hh = fromIntegral h / 2
       let y1 = truncate (hh - height)
       let y2 = truncate (hh + height)
-      [ ((x,y1), Green), ((x,y2), Green)]
+      --let ys = [y1,y2] -- just top & bottom of wall
+      let ys = [y1..y2] -- just top & bottom of wall
+      [ ((x,y), Green) | y <- ys ]
+
 
 gazeHeights :: State -> [(Int,Maybe Point)]
 gazeHeights s = do
