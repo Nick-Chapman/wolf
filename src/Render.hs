@@ -46,9 +46,10 @@ tileAtPos p@(x,y) = do
       -> On
     | (x >= 0 && x <= w-1) && (y == 0 || y == h-1)
       -> On
-    | x >= 10 && x <= 11 && y >= 10 && y <= 11
-      -> On
-    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
+--  | x >= 10 && x <= 11 && y >= 10 && y <= 11
+--      -> On
+--    | p `elem` [ (1,2), (2,4), (2,5), (3,5), (3,6) ]
+    | p `elem` [ (5,6), (6,5), (7,4), (8,4), (9,5), (10,6) ]
       -> On
     | otherwise
       -> Off
@@ -86,7 +87,7 @@ state0 :: State
 state0 = State
   { px = fromIntegral ((w+tileSize) `div` 2)
   , py = fromIntegral ((h+tileSize) `div` 2)
-  , pa = 0
+  , pa = - (pi / 2)
   }
   where (w,h) = planSize
 
