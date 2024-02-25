@@ -1,5 +1,5 @@
 
-module GraphicsSDL2
+module GameLoop
   ( Conf(..)
   , main
   ) where

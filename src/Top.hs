@@ -1,7 +1,7 @@
 module Top (main) where
 
 import System.Environment (getArgs)
-import qualified GraphicsSDL as SDL (main,Conf(..))
+import qualified GameLoop (main,Conf(..))
 
 main :: IO ()
 main = do
@@ -10,7 +10,7 @@ main = do
   let Conf{mode,fpsLimit,scaleFactor,showControls} = parse args conf0
   case mode of
     ModePlay -> do
-      SDL.main $ SDL.Conf { scaleFactor, fpsLimit, showControls }
+      GameLoop.main $ GameLoop.Conf { scaleFactor, fpsLimit, showControls }
 
 parse :: [String] -> Conf -> Conf
 parse args conf = case args of
