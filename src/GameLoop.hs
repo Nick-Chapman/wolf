@@ -13,10 +13,10 @@ import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
 import qualified Foreign.C.Types (CInt)
-import qualified Render (canvasSize,fps)
+import qualified Render (canvasSize,fps,incAA,decAA,selectAA)
 import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
 
-import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
+import SDL (Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
 import SDL.Input.Keyboard.Codes
 import qualified SDL
 
@@ -122,23 +122,29 @@ data KeyAction -- TODO: does this have much value?
   | TogglePause
   | IncreaseSF
   | DecreaseSF
-  | Dump
+  | IncAA
+  | DecAA
+  | SelectAA
   deriving (Show)
 
 keyMapping :: (Keycode,InputMotion) -> KeyAction
 keyMapping = \case
-  (KeycodeReturn,Pressed) -> Dump
   (KeycodeEscape,Pressed) -> Quit
   (KeycodeDelete,Pressed) -> TogglePause
-  -- (KeycodeSpace,Pressed) -> undefined
+
+  (KeycodeReturn,Pressed) -> SelectAA
+  (KeycodeUp,Pressed) -> IncAA
+  (KeycodeDown,Pressed) -> DecAA
+
   (KeycodeEquals,Pressed) -> IncreaseSF
   (KeycodeMinus,Pressed) -> DecreaseSF
-  (KeycodeLeft,m) -> Drive StrafeLeft m
-  (KeycodeRight,m) -> Drive StrafeRight m
+
   (KeycodeA,m) -> Drive TurnLeft m
   (KeycodeS,m) -> Drive Backwards m
   (KeycodeD,m) -> Drive TurnRight m
   (KeycodeW,m) -> Drive Forwards m
+  (KeycodeLeft,m) -> Drive StrafeLeft m
+  (KeycodeRight,m) -> Drive StrafeRight m
   _ -> NoAction
 
 updateKey :: Keycode -> InputMotion -> World -> IO (Maybe World)
@@ -150,7 +156,11 @@ updateKey key motion w@World{buttons,paused,sf,state} =
     Drive but motion -> pure $ Just w { buttons = setButton motion but buttons }
     IncreaseSF -> pure $ Just w { sf = sf+1 }
     DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
-    Dump -> do print state; pure (Just w)
+    IncAA -> dump w { state = Render.incAA state }
+    DecAA -> dump w { state = Render.decAA state }
+    SelectAA -> dump w { state = Render.selectAA state }
+    where
+      dump w@World{state} = do print state; pure (Just w)
 
 ----------------------------------------------------------------------
 -- Buttons

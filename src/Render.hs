@@ -6,6 +6,7 @@ module Render
   , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render
   , fps
+  , incAA, decAA, selectAA
   ) where
 
 import Data.List (sortBy)
@@ -15,15 +16,55 @@ import Prelude hiding (Int)
 import Foreign.C.Types (CInt)
 type Int = CInt
 
-data State = State
-  { px :: Float
+data State = State -- TODO: extract to own file
+  { aa :: AdjustableAttribute
+  , fps :: Int
+  , viewAngle :: Int
+  , tileSize :: Int
+  , tmSize :: Int
+  , px :: Float
   , py :: Float
   , pa :: Angle
-  , tileSize :: Int
-  , viewAngle :: Int
-  , tmSize :: Int
-  , fps :: Int
   } deriving Show
+
+state0 :: State
+state0 = s
+  where
+    s = State
+      { aa = FPS
+      , fps = 20
+      , viewAngle = 60
+      , tileSize = 20
+      , tmSize = 15
+      , px = fromIntegral ((w + tileSize s) `div` 2)
+      , py = fromIntegral ((h + tileSize s) `div` 2)
+      , pa = - (pi / 2)
+      }
+    (w,h) = planSize s
+
+data AdjustableAttribute = FPS | ViewAngle | TileSize
+  deriving Show
+
+incAA :: State -> State
+incAA s@State{aa,tileSize,viewAngle,fps} =
+  case aa of
+    FPS -> s { fps = min 60 (fps + 1) }
+    ViewAngle -> s { viewAngle = viewAngle + 1 }
+    TileSize -> s { tileSize = tileSize + 1 }
+
+decAA :: State -> State
+decAA s@State{aa,tileSize,viewAngle,fps} =
+  case aa of
+    FPS -> s { fps = max 1 (fps - 1) }
+    ViewAngle -> s { viewAngle = max 1 (viewAngle - 1) }
+    TileSize -> s { tileSize = max 1 (tileSize - 1) }
+
+selectAA :: State -> State
+selectAA s@State{aa} =
+  case aa of
+    TileSize -> s { aa = ViewAngle }
+    ViewAngle -> s { aa = FPS }
+    FPS -> s { aa = TileSize }
 
 canvasSize :: State -> P2
 canvasSize s = (w+w,h) where (w,h) = planSize s
@@ -62,20 +103,6 @@ data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
 type Pix = (P2,Colour)
 
 type Angle = Float
-
-state0 :: State
-state0 = s
-  where
-    s = State
-      { px = fromIntegral ((w + tileSize s) `div` 2)
-      , py = fromIntegral ((h + tileSize s) `div` 2)
-      , pa = - (pi / 2)
-      , tileSize = 20
-      , viewAngle = 60
-      , tmSize = 15
-      , fps = 20
-      }
-    (w,h) = planSize s
 
 forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
 
