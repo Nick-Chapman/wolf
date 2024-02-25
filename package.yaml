@@ -18,7 +18,6 @@ dependencies:
 - extra
 - mtl
 - sdl2
-- sdl2-ttf
 - split
 - text
 - time

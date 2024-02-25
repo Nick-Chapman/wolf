@@ -6,6 +6,7 @@ module GameLoop
 
 import Control.Concurrent (threadDelay)
 import Data.Map (Map)
+import GHC.Word (Word8)
 import Prelude hiding (Int)
 import Render (Colour(..),State,state0,render,dump)
 import System.IO (hFlush,stdout)
@@ -17,22 +18,18 @@ import qualified Render (canvasSize)
 import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
 
 import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
-import SDL.Font (Font,Color)
 import SDL.Input.Keyboard.Codes
 import qualified SDL
-import qualified SDL.Font as Font (initialize,load,solid,size)
 
 data Conf = Conf
   { scaleFactor :: Prelude.Int -- TODO: use CInt
   , fpsLimit :: Maybe Prelude.Int
-  , showControls :: Bool
   } deriving Show
 
 type Int = Foreign.C.Types.CInt
 
 data World = World
   { paused :: Bool
-  , w_showControls :: Bool
   , frameCount :: Int
   , buttons :: Buttons
   , state :: State
@@ -43,7 +40,6 @@ initWorld :: Int -> IO World
 initWorld sf = do
   return $ World
     { paused = False
-    , w_showControls = False -- TODO: from Config
     , frameCount = 0
     , buttons = buttons0
     , state = state0
@@ -52,17 +48,14 @@ initWorld sf = do
 
 main :: Conf -> IO ()
 main Conf{scaleFactor,fpsLimit} = do
-  putStrLn "*GraphicsSDL2*"
   let sf = fromIntegral scaleFactor
   world <- initWorld sf
   SDL.initializeAll
-  Font.initialize
   let winConfig = SDL.defaultWindow
   win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
   renderer <- SDL.createRenderer win (-1) SDL.defaultRenderer
-  font <- Font.load "assets/Acorn Full Nostalgia.ttf" (5 * scaleFactor) -- TODO: dynamic sf
   let _flush = hFlush stdout
-  let assets = DrawAssets { win, renderer, font, canvasSize = Render.canvasSize }
+  let assets = DrawAssets { win, renderer, canvasSize = Render.canvasSize }
   let
     loop :: World -> IO () -- TODO: extract loop
     loop world = do
@@ -141,7 +134,6 @@ data KeyAction -- TODO: does this have much value?
   | Quit
   | Drive But InputMotion
   | TogglePause
-  | ToggleControlDisplay
   | IncreaseSF
   | DecreaseSF
   | Dump
@@ -152,7 +144,7 @@ keyMapping = \case
   (KeycodeReturn,Pressed) -> Dump
   (KeycodeEscape,Pressed) -> Quit
   (KeycodeDelete,Pressed) -> TogglePause
-  (KeycodeSpace,Pressed) -> ToggleControlDisplay
+  -- (KeycodeSpace,Pressed) -> undefined
   (KeycodeEquals,Pressed) -> IncreaseSF
   (KeycodeMinus,Pressed) -> DecreaseSF
   (KeycodeLeft,m) -> Drive StrafeLeft m
@@ -164,12 +156,11 @@ keyMapping = \case
   _ -> NoAction
 
 updateKey :: Keycode -> InputMotion -> World -> IO (Maybe World)
-updateKey key motion w@World{w_showControls,buttons,paused,sf,state} =
+updateKey key motion w@World{buttons,paused,sf,state} =
   case keyMapping (key,motion) of
     NoAction -> pure $ Just w
     Quit -> pure $ Nothing
     TogglePause -> pure $ Just w { paused = not (paused) }
-    ToggleControlDisplay -> pure $ Just w { w_showControls = not w_showControls }
     Drive but motion -> pure $ Just w { buttons = drive motion but buttons }
     IncreaseSF -> pure $ Just w { sf = sf+1 }
     DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
@@ -184,15 +175,14 @@ updateKey key motion w@World{w_showControls,buttons,paused,sf,state} =
 data DrawAssets = DrawAssets
   { renderer :: Renderer
   , win :: SDL.Window
-  , font :: Font
   , canvasSize :: (Int,Int)
   }
 
 resize :: World -> DrawAssets -> IO ()
-resize World{sf,w_showControls} DrawAssets{canvasSize,win} = do
+resize World{sf} DrawAssets{canvasSize,win} = do
   let (screenW,screenH) = canvasSize
   let windowSize = V2 w h where
-        w = sf * (screenW + if w_showControls then 200 else 0)
+        w = sf * screenW
         h = sf * screenH
   SDL.windowSize win $= windowSize
 
@@ -204,7 +194,7 @@ drawEverything assets@DrawAssets{renderer=r} world = do
   SDL.present r
 
 renderPicture :: DrawAssets -> World -> Picture  -> IO ()
-renderPicture a@DrawAssets{renderer=r} World{sf} picture = do
+renderPicture DrawAssets{renderer=r} World{sf} picture = do
   traverse picture
   where
     scale :: Int -> Int
@@ -221,29 +211,10 @@ renderPicture a@DrawAssets{renderer=r} World{sf} picture = do
         let rect = SDL.Rectangle (SDL.P (V2 x y)) (V2 sf sf)
         SDL.fillRect r (Just rect)
 
-      Text{lineNo,string,emphasized} -> do
-        renderText a col string (P (V2 (scale x) (scale y)))
-          where
-            col = if emphasized then Green else White
-            x = w+10
-            y = fromIntegral lineNo * 10
-            (w,_) = Render.canvasSize
-
-renderText :: DrawAssets -> Colour -> String -> Point V2 Int -> IO ()
-renderText DrawAssets{renderer=r,font} col string pos = do
-  let text = Text.pack string
-  surface <- Font.solid font (color col) text
-  texture <- SDL.createTextureFromSurface r surface
-  SDL.freeSurface surface
-  (fw,fh) <- Font.size font text
-  let (w,h) = (fromIntegral fw, fromIntegral fh)
-  SDL.copy r texture Nothing (Just (Rectangle pos (V2 w h)))
-  SDL.destroyTexture texture
-
 setColor :: SDL.Renderer -> Colour -> IO ()
 setColor r c = SDL.rendererDrawColor r $= color c
 
-color :: Colour -> Color
+color :: Colour -> V4 Word8
 color = \case
   DarkGrey -> V4 20 20 20 m
   LightGrey -> V4 200 200 200 m
@@ -262,57 +233,16 @@ color = \case
 
 data Picture
   = Pictures [Picture]
-  | Text { string :: String, lineNo :: Int, emphasized :: Bool }
   | Pixel { x :: Int, y :: Int, col :: Colour }
 
 pictureWorld :: World -> Picture
-pictureWorld w@World{w_showControls,frameCount,state} =
+pictureWorld World{state} =
   Pictures
-  [ pictureState state
-  , if w_showControls then controls else Pictures []
-  ]
-  where
-    controls = Pictures
-      [ pictureButtons w
-      , Text { lineNo = 1, string = "frame : " <> show frameCount, emphasized = False }
-      ]
-
-pictureState :: State -> Picture
-pictureState s= Pictures
-  [ Text { lineNo = 2, string = show s, emphasized = False }
-  , pictureCanvas s
+  [ pictureCanvas state
   ]
 
 pictureCanvas :: State -> Picture
 pictureCanvas s = Pictures [ Pixel x y col | ((x,y),col) <- render s]
-
-pictureButtons :: World -> Picture -- TOOD: only show the buttons
-pictureButtons World{buttons,paused} =
-  Pictures [ Text { lineNo, string = describeKeyAndMapping key, emphasized }
-           | (lineNo,key) <- zip [3..] keys
-           , let emphasized = do
-                   let action = keyMapping (key,Pressed)
-                   case action of
-                     TogglePause -> paused
-                     Drive but _ -> getB but buttons
-                     _ -> False
-           ]
-  where
-    keys =
-      [ KeycodeEscape,
-        KeycodeDelete,
-        KeycodeSpace,
-        KeycodeEquals,
-        KeycodeMinus,
-        KeycodeLeft,
-        KeycodeRight,
-        KeycodeA,
-        KeycodeS,
-        KeycodeD,
-        KeycodeW ]
-
-describeKeyAndMapping :: Keycode -> String
-describeKeyAndMapping key = show key <> " : " <> show (keyMapping (key,Pressed))
 
 ----------------------------------------------------------------------
 -- Buttons
