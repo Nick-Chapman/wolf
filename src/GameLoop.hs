@@ -95,12 +95,12 @@ stepFrame world@World{paused,frameCount,buttons,state} = do -- TODO: inline
 
 updateState :: Buttons -> State -> State
 updateState b s =
-  ( (if getB Forwards b then State.forwards else id)
-  . (if getB Backwards b then State.backwards else id)
-  . (if getB TurnLeft b then State.turnLeft else id)
-  . (if getB TurnRight b then State.turnRight else id)
-  . (if getB StrafeLeft b then State.strafeLeft else id)
-  . (if getB StrafeRight b then State.strafeRight else id)
+  ( (if isPressed Forwards b then State.forwards else id)
+  . (if isPressed Backwards b then State.backwards else id)
+  . (if isPressed TurnLeft b then State.turnLeft else id)
+  . (if isPressed TurnRight b then State.turnRight else id)
+  . (if isPressed StrafeLeft b then State.strafeLeft else id)
+  . (if isPressed StrafeRight b then State.strafeRight else id)
   ) s
 
 processEvents :: World -> [SDL.Event] -> IO (Maybe World)
@@ -158,13 +158,33 @@ updateKey key motion w@World{buttons,paused,sf,state} =
     NoAction -> pure $ Just w
     Quit -> pure $ Nothing
     TogglePause -> pure $ Just w { paused = not (paused) }
-    Drive but motion -> pure $ Just w { buttons = drive motion but buttons }
+    Drive but motion -> pure $ Just w { buttons = setButton motion but buttons }
     IncreaseSF -> pure $ Just w { sf = sf+1 }
     DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
     Dump -> do Render.dump state; pure (Just w)
-  where
-    drive :: InputMotion -> But -> Buttons -> Buttons
-    drive = \case Pressed -> pressB; Released -> releaseB
+
+----------------------------------------------------------------------
+-- Buttons
+
+data But
+  = Forwards
+  | Backwards
+  | TurnLeft
+  | TurnRight
+  | StrafeLeft
+  | StrafeRight
+  deriving (Eq,Ord,Show)
+
+newtype Buttons = Buttons { map :: Map But InputMotion } deriving Show
+
+buttons0 :: Buttons
+buttons0 = Buttons { map = Map.empty }
+
+isPressed :: But -> Buttons -> Bool
+isPressed but Buttons{map} = Map.findWithDefault Released but map == Pressed
+
+setButton :: InputMotion -> But -> Buttons -> Buttons
+setButton v but Buttons{map} = Buttons { map = Map.insert but v map }
 
 ----------------------------------------------------------------------
 -- DrawAssets
@@ -223,32 +243,3 @@ color = \case
   Magenta -> V4 m 0 m m
   where
     m = 255
-
-----------------------------------------------------------------------
--- Buttons
-
-data But
-  = Forwards
-  | Backwards
-  | TurnLeft
-  | TurnRight
-  | StrafeLeft
-  | StrafeRight
-  deriving (Eq,Ord,Show)
-
-newtype Buttons = Buttons { map :: Map But Bool } deriving Show
-
-buttons0 :: Buttons
-buttons0 = Buttons { map = Map.empty }
-
-getB :: But -> Buttons -> Bool
-getB but Buttons{map} = Map.findWithDefault False but map
-
-setB :: Bool -> But -> Buttons -> Buttons
-setB v but Buttons{map} = Buttons { map = Map.insert but v map }
-
-pressB :: But -> Buttons -> Buttons
-pressB = setB True
-
-releaseB :: But -> Buttons -> Buttons
-releaseB = setB False
