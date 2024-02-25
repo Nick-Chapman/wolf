@@ -8,7 +8,7 @@ import Control.Concurrent (threadDelay)
 import Data.Map (Map)
 import GHC.Word (Word8)
 import Prelude hiding (Int)
-import Render (Pix,Colour(..),State,state0,render,dump)
+import Render (Pix,Colour(..),State,state0,render)
 import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
@@ -21,7 +21,7 @@ import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotio
 import SDL.Input.Keyboard.Codes
 import qualified SDL
 
-data Conf = Conf
+data Conf = Conf -- TODO: kill
   { sf0 :: Prelude.Int -- TODO: use CInt
   , fps0 :: Prelude.Int
   } deriving Show
@@ -56,12 +56,11 @@ main conf = do
   win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
   renderer <- SDL.createRenderer win (-1) SDL.defaultRenderer
   let _flush = hFlush stdout
-  let assets = DrawAssets { win, renderer, canvasSize = Render.canvasSize }
+  let assets = DrawAssets { win, renderer }
   let
     loop :: World -> IO () -- TODO: extract loop
     loop world@World{fps} = do
       before <- SDL.ticks
-      --putStr "."; _flush
       events <- SDL.pollEvents
       processEvents world events >>= \case
         Nothing -> return () -- quit
@@ -161,7 +160,7 @@ updateKey key motion w@World{buttons,paused,sf,state} =
     Drive but motion -> pure $ Just w { buttons = setButton motion but buttons }
     IncreaseSF -> pure $ Just w { sf = sf+1 }
     DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
-    Dump -> do Render.dump state; pure (Just w)
+    Dump -> do print state; pure (Just w)
 
 ----------------------------------------------------------------------
 -- Buttons
@@ -192,15 +191,12 @@ setButton v but Buttons{map} = Buttons { map = Map.insert but v map }
 data DrawAssets = DrawAssets
   { renderer :: Renderer
   , win :: SDL.Window
-  , canvasSize :: (Int,Int)
   }
 
 resize :: World -> DrawAssets -> IO ()
-resize World{sf} DrawAssets{canvasSize,win} = do
-  let (screenW,screenH) = canvasSize
-  let windowSize = V2 w h where
-        w = sf * screenW
-        h = sf * screenH
+resize World{sf,state} DrawAssets{win} = do
+  let (w,h) = Render.canvasSize state
+  let windowSize = V2 (sf * w) (sf * h)
   SDL.windowSize win $= windowSize
 
 drawEverything :: DrawAssets -> World -> IO ()
@@ -211,35 +207,29 @@ drawEverything assets@DrawAssets{renderer=r} world@World{state} = do
   SDL.present r
 
 renderPicture :: DrawAssets -> World -> [Pix]  -> IO ()
-renderPicture DrawAssets{renderer=r} World{sf} pictures = do
-  mapM_ traverse pictures
+renderPicture DrawAssets{renderer=r} World{sf} pixs = do
+  mapM_ traverse pixs
   where
-    scale :: Int -> Int
-    scale x = sf * x
-
     traverse :: Pix -> IO ()
-    traverse = \case
-
-      ((x0,y0),col) -> do
-        setColor r col
-        let x = scale (fromIntegral x0)
-        let y = scale (fromIntegral y0)
-        let rect = SDL.Rectangle (SDL.P (V2 x y)) (V2 sf sf)
-        SDL.fillRect r (Just rect)
+    traverse ((x0,y0),col) = do
+      setColor r col
+      let x = sf * fromIntegral x0
+      let y = sf * fromIntegral y0
+      let rect = SDL.Rectangle (SDL.P (V2 x y)) (V2 sf sf)
+      SDL.fillRect r (Just rect)
 
 setColor :: SDL.Renderer -> Colour -> IO ()
 setColor r c = SDL.rendererDrawColor r $= color c
 
 color :: Colour -> V4 Word8
 color = \case
-  DarkGrey -> V4 20 20 20 m
-  LightGrey -> V4 200 200 200 m
-  Black -> V4 0 0 0 m
-  White -> V4 m m m m
-  Red -> V4 m 0 0 m
-  Green -> V4 0 m 0 m
-  Blue -> V4 0 0 m m
-  Yellow -> V4 m m 0 m
-  Magenta -> V4 m 0 m m
-  where
-    m = 255
+  DarkGrey -> V4 20 20 20 x
+  LightGrey -> V4 200 200 200 x
+  Black -> V4 0 0 0 x
+  White -> V4 x x x x
+  Red -> V4 x 0 0 x
+  Green -> V4 0 x 0 x
+  Blue -> V4 0 0 x x
+  Yellow -> V4 x x 0 x
+  Magenta -> V4 x 0 x x
+  where x = 255
