@@ -1,6 +1,6 @@
 
 module GameLoop
-  ( Conf(..)
+  ( initWorld, World
   , main
   ) where
 
@@ -13,18 +13,12 @@ import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
 import qualified Foreign.C.Types (CInt)
-import qualified Prelude
 import qualified Render (canvasSize)
 import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
 
 import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
 import SDL.Input.Keyboard.Codes
 import qualified SDL
-
-data Conf = Conf -- TODO: kill
-  { sf0 :: Prelude.Int -- TODO: use CInt
-  , fps0 :: Prelude.Int
-  } deriving Show
 
 type Int = Foreign.C.Types.CInt
 
@@ -37,20 +31,18 @@ data World = World
   , fps :: Int
   }
 
-initWorld :: Conf -> IO World
-initWorld Conf{sf0,fps0} = do
-  return $ World
-    { paused = False
-    , frameCount = 0
-    , buttons = buttons0
-    , state = state0
-    , sf = fromIntegral sf0
-    , fps = fromIntegral fps0
-    }
+initWorld :: World
+initWorld = World
+  { paused = False
+  , frameCount = 0
+  , buttons = buttons0
+  , state = state0
+  , sf = 2
+  , fps = 20
+  }
 
-main :: Conf -> IO ()
-main conf = do
-  world <- initWorld conf
+main :: World -> IO ()
+main world = do
   SDL.initializeAll
   let winConfig = SDL.defaultWindow
   win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
