@@ -2,75 +2,24 @@
 module Render
   ( canvasSize
   , Pix, Colour(..)
-  , State, state0
-  , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render
-  , fps
-  , incAA, decAA, selectAA
   ) where
 
 import Data.List (sortBy)
 import Data.Ord (comparing)
-
+import State (State(..),planSize)
 import Prelude hiding (Int)
+
 import Foreign.C.Types (CInt)
 type Int = CInt
 
-data State = State -- TODO: extract to own file
-  { aa :: AdjustableAttribute
-  , fps :: Int
-  , viewAngle :: Int
-  , tileSize :: Int
-  , tmSize :: Int
-  , px :: Float
-  , py :: Float
-  , pa :: Angle
-  } deriving Show
+type P2 = (Int,Int)
 
-state0 :: State
-state0 = s
-  where
-    s = State
-      { aa = FPS
-      , fps = 20
-      , viewAngle = 60
-      , tileSize = 20
-      , tmSize = 15
-      , px = fromIntegral ((w + tileSize s) `div` 2)
-      , py = fromIntegral ((h + tileSize s) `div` 2)
-      , pa = - (pi / 2)
-      }
-    (w,h) = planSize s
-
-data AdjustableAttribute = FPS | ViewAngle | TileSize
-  deriving Show
-
-incAA :: State -> State
-incAA s@State{aa,tileSize,viewAngle,fps} =
-  case aa of
-    FPS -> s { fps = min 60 (fps + 1) }
-    ViewAngle -> s { viewAngle = viewAngle + 1 }
-    TileSize -> s { tileSize = tileSize + 1 }
-
-decAA :: State -> State
-decAA s@State{aa,tileSize,viewAngle,fps} =
-  case aa of
-    FPS -> s { fps = max 1 (fps - 1) }
-    ViewAngle -> s { viewAngle = max 1 (viewAngle - 1) }
-    TileSize -> s { tileSize = max 1 (tileSize - 1) }
-
-selectAA :: State -> State
-selectAA s@State{aa} =
-  case aa of
-    TileSize -> s { aa = ViewAngle }
-    ViewAngle -> s { aa = FPS }
-    FPS -> s { aa = TileSize }
+scale :: Int -> P2 -> P2
+scale n (x,y) = (n*x,n*y)
 
 canvasSize :: State -> P2
 canvasSize s = (w+w,h) where (w,h) = planSize s
-
-planSize :: State -> P2
-planSize s = scale (tileSize s) (n,n) where n = tmSize s
 
 data Tile = On | Off deriving (Eq)
 
@@ -89,11 +38,6 @@ tileAtPos s p@(x,y) = do
     | otherwise
       -> Off
 
-type P2 = (Int,Int)
-
-scale :: Int -> P2 -> P2
-scale n (x,y) = (n*x,n*y)
-
 add :: P2 -> P2 -> P2
 add (i,j) (x,y) = (i+x,j+y)
 
@@ -101,36 +45,6 @@ data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey
   deriving Show
 
 type Pix = (P2,Colour)
-
-type Angle = Float
-
-forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
-
-(turnLeft,turnRight) = (left,right)
-  where
-    left s@State{pa} = s { pa = pa - angularTurnPerFrame s }
-    right s@State{pa} = s { pa = pa + angularTurnPerFrame s }
-    angularTurnPerFrame s = 0.1 * 20 / fromIntegral (fps s)
-
-(forwards,backwards,strafeLeft,strafeRight) = (fore,back,left,right)
-  where
-    fore s@State{px,py,pa} =
-      s { px = px + cos pa * stride s
-        , py = py + sin pa * stride s
-        }
-    back s@State{px,py,pa} =
-      s { px = px - cos pa * stride s
-        , py = py - sin pa * stride s
-        }
-    left s@State{px,py,pa} =
-      s { px = px + sin pa * stride s
-        , py = py - cos pa * stride s
-        }
-    right s@State{px,py,pa} =
-      s { px = px - sin pa * stride s
-        , py = py + cos pa * stride s
-        }
-    stride s = 2 * (fromIntegral (tileSize s) / 16) * (30 / fromIntegral (fps s))
 
 render :: State -> [Pix]
 render s =
@@ -177,6 +91,8 @@ renderGaze withMisses s = do
 
 toAngle :: Int -> Float
 toAngle deg = fromIntegral deg * 2 * pi / 360.0
+
+type Angle = Float
 
 renderLooking :: Bool -> Angle -> State -> [Pix]
 renderLooking withMisses angle s = do

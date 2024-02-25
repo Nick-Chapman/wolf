@@ -8,13 +8,13 @@ import Control.Concurrent (threadDelay)
 import Data.Map (Map)
 import GHC.Word (Word8)
 import Prelude hiding (Int)
-import Render (Pix,Colour(..),State,state0,render)
+import Render (Pix,Colour(..),render,canvasSize)
+import State (State,state0)
 import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
 import qualified Foreign.C.Types (CInt)
-import qualified Render (canvasSize,fps,incAA,decAA,selectAA)
-import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
+import qualified State
 
 import SDL (Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
 import SDL.Input.Keyboard.Codes
@@ -64,7 +64,7 @@ main world = do
               maybeDelay = do
                 after <- SDL.ticks
                 let durationMs = fromIntegral (1000*(after-before))
-                let goalMs = 1000000 `div` fromIntegral (Render.fps state)
+                let goalMs = 1000000 `div` fromIntegral (State.fps state)
                 if (goalMs > durationMs)
                   then threadDelay (goalMs - durationMs)
                   else return ()
@@ -156,9 +156,9 @@ updateKey key motion w@World{buttons,paused,sf,state} =
     Drive but motion -> pure $ Just w { buttons = setButton motion but buttons }
     IncreaseSF -> pure $ Just w { sf = sf+1 }
     DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
-    IncAA -> dump w { state = Render.incAA state }
-    DecAA -> dump w { state = Render.decAA state }
-    SelectAA -> dump w { state = Render.selectAA state }
+    IncAA -> dump w { state = State.incAA state }
+    DecAA -> dump w { state = State.decAA state }
+    SelectAA -> dump w { state = State.selectAA state }
     where
       dump w@World{state} = do print state; pure (Just w)
 
@@ -193,9 +193,9 @@ data DrawAssets = DrawAssets
   , win :: SDL.Window
   }
 
-resize :: World -> DrawAssets -> IO ()
+resize :: World -> DrawAssets -> IO () -- TODO: only if changed?
 resize World{sf,state} DrawAssets{win} = do
-  let (w,h) = Render.canvasSize state
+  let (w,h) = canvasSize state
   let windowSize = V2 (sf * w) (sf * h)
   SDL.windowSize win $= windowSize
 
