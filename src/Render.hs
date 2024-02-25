@@ -5,6 +5,7 @@ module Render
   , State, state0
   , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render
+  , fps
   ) where
 
 import Data.List (sortBy)
@@ -21,6 +22,7 @@ data State = State
   , tileSize :: Int
   , viewAngle :: Int
   , tmSize :: Int
+  , fps :: Int
   } deriving Show
 
 canvasSize :: State -> P2
@@ -71,6 +73,7 @@ state0 = s
       , tileSize = 20
       , viewAngle = 60
       , tmSize = 15
+      , fps = 20
       }
     (w,h) = planSize s
 
@@ -78,9 +81,9 @@ forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
 
 (turnLeft,turnRight) = (left,right)
   where
-    left s@State{pa} = s { pa = pa - angularTurnPerFrame }
-    right s@State{pa} = s { pa = pa + angularTurnPerFrame }
-    angularTurnPerFrame = 0.1 -- TODO: should be scaled via fps
+    left s@State{pa} = s { pa = pa - angularTurnPerFrame s }
+    right s@State{pa} = s { pa = pa + angularTurnPerFrame s }
+    angularTurnPerFrame s = 0.1 * 20 / fromIntegral (fps s)
 
 (forwards,backwards,strafeLeft,strafeRight) = (fore,back,left,right)
   where
@@ -100,8 +103,7 @@ forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
       s { px = px - sin pa * stride s
         , py = py + cos pa * stride s
         }
-    stride s = 2 * (fromIntegral (tileSize s) / 16) * (30 / fps)
-    fps = 20
+    stride s = 2 * (fromIntegral (tileSize s) / 16) * (30 / fromIntegral (fps s))
 
 render :: State -> [Pix]
 render s =

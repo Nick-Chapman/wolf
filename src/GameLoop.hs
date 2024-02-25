@@ -13,7 +13,7 @@ import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
 import qualified Foreign.C.Types (CInt)
-import qualified Render (canvasSize)
+import qualified Render (canvasSize,fps)
 import qualified Render as State (forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight)
 
 import SDL (V2(..),Renderer,Rectangle(..),V2(..),V4(..),Point(P),($=),InputMotion(Pressed,Released))
@@ -28,7 +28,6 @@ data World = World
   , buttons :: Buttons
   , state :: State
   , sf :: Int
-  , fps :: Int
   }
 
 initWorld :: World
@@ -38,7 +37,6 @@ initWorld = World
   , buttons = buttons0
   , state = state0
   , sf = 2
-  , fps = 20
   }
 
 main :: World -> IO ()
@@ -51,7 +49,7 @@ main world = do
   let assets = DrawAssets { win, renderer }
   let
     loop :: World -> IO () -- TODO: extract loop
-    loop world@World{fps} = do
+    loop world@World{state} = do
       before <- SDL.ticks
       events <- SDL.pollEvents
       processEvents world events >>= \case
@@ -66,7 +64,7 @@ main world = do
               maybeDelay = do
                 after <- SDL.ticks
                 let durationMs = fromIntegral (1000*(after-before))
-                let goalMs = 1000000 `div` fromIntegral fps
+                let goalMs = 1000000 `div` fromIntegral (Render.fps state)
                 if (goalMs > durationMs)
                   then threadDelay (goalMs - durationMs)
                   else return ()
