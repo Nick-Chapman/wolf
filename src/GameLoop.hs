@@ -22,8 +22,8 @@ import SDL.Input.Keyboard.Codes
 import qualified SDL
 
 data Conf = Conf
-  { scaleFactor :: Prelude.Int -- TODO: use CInt
-  , fpsLimit :: Maybe Prelude.Int
+  { sf0 :: Prelude.Int -- TODO: use CInt
+  , fps0 :: Prelude.Int
   } deriving Show
 
 type Int = Foreign.C.Types.CInt
@@ -34,22 +34,23 @@ data World = World
   , buttons :: Buttons
   , state :: State
   , sf :: Int
+  , fps :: Int
   }
 
-initWorld :: Int -> IO World
-initWorld sf = do
+initWorld :: Conf -> IO World
+initWorld Conf{sf0,fps0} = do
   return $ World
     { paused = False
     , frameCount = 0
     , buttons = buttons0
     , state = state0
-    , sf -- TODO: chosse default here
+    , sf = fromIntegral sf0
+    , fps = fromIntegral fps0
     }
 
 main :: Conf -> IO ()
-main Conf{scaleFactor,fpsLimit} = do
-  let sf = fromIntegral scaleFactor
-  world <- initWorld sf
+main conf = do
+  world <- initWorld conf
   SDL.initializeAll
   let winConfig = SDL.defaultWindow
   win <- SDL.createWindow (Text.pack "Wolf") $ winConfig
@@ -58,7 +59,7 @@ main Conf{scaleFactor,fpsLimit} = do
   let assets = DrawAssets { win, renderer, canvasSize = Render.canvasSize }
   let
     loop :: World -> IO () -- TODO: extract loop
-    loop world = do
+    loop world@World{fps} = do
       before <- SDL.ticks
       --putStr "."; _flush
       events <- SDL.pollEvents
@@ -73,15 +74,11 @@ main Conf{scaleFactor,fpsLimit} = do
             where
               maybeDelay = do
                 after <- SDL.ticks
-                case fpsLimit of
-                  Nothing -> return ()
-                  Just fpsLimit -> do
-                    let durationMs = fromIntegral (1000*(after-before))
-                    let goalMs = 1000000 `div` fpsLimit
-
-                    if (goalMs > durationMs)
-                      then threadDelay (goalMs - durationMs)
-                      else return ()
+                let durationMs = fromIntegral (1000*(after-before))
+                let goalMs = 1000000 `div` fromIntegral fps
+                if (goalMs > durationMs)
+                  then threadDelay (goalMs - durationMs)
+                  else return ()
   loop world
   SDL.destroyRenderer renderer
   SDL.destroyWindow win

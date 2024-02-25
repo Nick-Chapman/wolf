@@ -7,31 +7,24 @@ main :: IO ()
 main = do
   putStrLn "*wolf*"
   args <- getArgs
-  let Conf{mode,fpsLimit,scaleFactor} = parse args conf0
-  case mode of
-    ModePlay -> do
-      GameLoop.main $ GameLoop.Conf { scaleFactor, fpsLimit }
+  let Conf{fps,sf} = parse args conf0
+  GameLoop.main $ GameLoop.Conf { sf0 = sf, fps0 = fps }
 
 parse :: [String] -> Conf -> Conf
 parse args conf = case args of
   [] -> conf
-  "-sf":i:args -> parse args $ conf { scaleFactor = read i }
-  "-fps":i:args -> parse args $ conf { fpsLimit = Just (read i) }
+  "-sf":i:args -> parse args $ conf { sf = read i }
+  "-fps":i:args -> parse args $ conf { fps = read i }
   args ->
     error $ "parseArgs: " ++ show args
 
-data Mode
-  = ModePlay
-
 data Conf = Conf
-  { mode :: Mode
-  , fpsLimit :: Maybe Int
-  , scaleFactor :: Int
+  { fps :: Int
+  , sf :: Int
   }
 
 conf0 :: Conf
 conf0 = Conf
-  { mode = ModePlay
-  , fpsLimit = Just 20
-  , scaleFactor = 2
+  { fps = 20
+  , sf = 2
   }
