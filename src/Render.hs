@@ -1,7 +1,7 @@
 
 module Render
   ( canvasSize
-  , Colour(..)
+  , Pix, Colour(..)
   , State, state0
   , forwards, backwards, turnLeft, turnRight, strafeLeft, strafeRight
   , render

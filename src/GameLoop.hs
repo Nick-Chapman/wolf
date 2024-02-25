@@ -8,7 +8,7 @@ import Control.Concurrent (threadDelay)
 import Data.Map (Map)
 import GHC.Word (Word8)
 import Prelude hiding (Int)
-import Render (Colour(..),State,state0,render,dump)
+import Render (Pix,Colour(..),State,state0,render,dump)
 import System.IO (hFlush,stdout)
 import qualified Data.Map.Strict as Map (empty,insert,findWithDefault)
 import qualified Data.Text as Text (pack)
@@ -184,24 +184,23 @@ resize World{sf} DrawAssets{canvasSize,win} = do
   SDL.windowSize win $= windowSize
 
 drawEverything :: DrawAssets -> World -> IO ()
-drawEverything assets@DrawAssets{renderer=r} world = do
+drawEverything assets@DrawAssets{renderer=r} world@World{state} = do
   setColor r DarkGrey
   SDL.clear r
-  renderPicture assets world (pictureWorld world)
+  renderPicture assets world (render state)
   SDL.present r
 
-renderPicture :: DrawAssets -> World -> Picture  -> IO ()
-renderPicture DrawAssets{renderer=r} World{sf} picture = do
-  traverse picture
+renderPicture :: DrawAssets -> World -> [Pix]  -> IO ()
+renderPicture DrawAssets{renderer=r} World{sf} pictures = do
+  mapM_ traverse pictures
   where
     scale :: Int -> Int
     scale x = sf * x
 
-    traverse :: Picture -> IO ()
+    traverse :: Pix -> IO ()
     traverse = \case
-      Pictures pics -> mapM_ traverse pics
 
-      Pixel{x=x0,y=y0,col} -> do
+      ((x0,y0),col) -> do
         setColor r col
         let x = scale (fromIntegral x0)
         let y = scale (fromIntegral y0)
@@ -224,22 +223,6 @@ color = \case
   Magenta -> V4 m 0 m m
   where
     m = 255
-
-----------------------------------------------------------------------
--- Picture
-
-data Picture
-  = Pictures [Picture]
-  | Pixel { x :: Int, y :: Int, col :: Colour }
-
-pictureWorld :: World -> Picture
-pictureWorld World{state} =
-  Pictures
-  [ pictureCanvas state
-  ]
-
-pictureCanvas :: State -> Picture
-pictureCanvas s = Pictures [ Pixel x y col | ((x,y),col) <- render s]
 
 ----------------------------------------------------------------------
 -- Buttons
