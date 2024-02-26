@@ -96,28 +96,20 @@ processEvents :: World -> [SDL.Event] -> IO (Maybe World)
 processEvents world = \case
   [] -> pure (Just world)
   e1:es -> do
-    case xEvent e1 of
-      Nothing -> processEvents world es
-      Just (key,motion) -> do
-        updateKey key motion world >>= \case
-          Just world -> processEvents world es
-          Nothing -> pure Nothing -- quit
-  where
-    xEvent :: SDL.Event -> Maybe (Keycode, InputMotion) -- TODO: inline
-    xEvent = \case
-      SDL.Event _t SDL.QuitEvent -> Nothing -- TODO: respond to window quit
-      SDL.Event _ (SDL.KeyboardEvent ke) -> xKeyboundEvent ke
-      SDL.Event _ _ -> Nothing
+    case e1 of
+      SDL.Event _ SDL.QuitEvent -> pure Nothing -- Quit
+      SDL.Event _ (SDL.KeyboardEvent ke) -> do
+        let key = SDL.keysymKeycode (SDL.keyboardEventKeysym ke)
+        if key == KeycodeEscape then pure Nothing else do -- Quit
+        let motion = SDL.keyboardEventKeyMotion ke
+        let action = keyMapping (key,motion)
+        world <- updateKey action world
+        processEvents world es
+      SDL.Event _ _ ->
+        processEvents world es
 
-    xKeyboundEvent :: SDL.KeyboardEventData -> Maybe (Keycode, InputMotion) -- TODO: inline
-    xKeyboundEvent ke = do
-      let key = SDL.keysymKeycode (SDL.keyboardEventKeysym ke)
-      let motion = SDL.keyboardEventKeyMotion ke
-      Just (key, motion)
-
-data KeyAction -- TODO: does this have much value?
+data KeyAction
   = NoAction
-  | Quit
   | Drive But InputMotion
   | TogglePause
   | IncreaseSF
@@ -129,16 +121,12 @@ data KeyAction -- TODO: does this have much value?
 
 keyMapping :: (Keycode,InputMotion) -> KeyAction
 keyMapping = \case
-  (KeycodeEscape,Pressed) -> Quit
   (KeycodeDelete,Pressed) -> TogglePause
-
   (KeycodeReturn,Pressed) -> SelectAA
   (KeycodeUp,Pressed) -> IncAA
   (KeycodeDown,Pressed) -> DecAA
-
   (KeycodeEquals,Pressed) -> IncreaseSF
   (KeycodeMinus,Pressed) -> DecreaseSF
-
   (KeycodeA,m) -> Drive TurnLeft m
   (KeycodeS,m) -> Drive Backwards m
   (KeycodeD,m) -> Drive TurnRight m
@@ -147,20 +135,19 @@ keyMapping = \case
   (KeycodeRight,m) -> Drive StrafeRight m
   _ -> NoAction
 
-updateKey :: Keycode -> InputMotion -> World -> IO (Maybe World)
-updateKey key motion w@World{buttons,paused,sf,state} =
-  case keyMapping (key,motion) of
-    NoAction -> pure $ Just w
-    Quit -> pure $ Nothing
-    TogglePause -> pure $ Just w { paused = not (paused) }
-    Drive but motion -> pure $ Just w { buttons = setButton motion but buttons }
-    IncreaseSF -> pure $ Just w { sf = sf+1 }
-    DecreaseSF -> pure $ Just w { sf = max (sf-1) 1 }
+updateKey :: KeyAction -> World -> IO World
+updateKey q w@World{buttons,paused,sf,state} =
+  case q of
+    NoAction -> pure w
+    TogglePause -> pure $ w { paused = not (paused) }
+    Drive but motion -> pure $ w { buttons = setButton motion but buttons }
+    IncreaseSF -> pure $ w { sf = sf+1 }
+    DecreaseSF -> pure $ w { sf = max (sf-1) 1 }
     IncAA -> dump w { state = State.incAA state }
     DecAA -> dump w { state = State.decAA state }
     SelectAA -> dump w { state = State.selectAA state }
     where
-      dump w@World{state} = do print state; pure (Just w)
+      dump w@World{state} = do print state; pure w
 
 ----------------------------------------------------------------------
 -- Buttons
