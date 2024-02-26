@@ -1,10 +1,15 @@
 # wolf
 
-Wolfenstein style Ray Caster. Using Haskell/SDL.
+Wolfenstein Style Ray Caster. Using Haskell/SDL.
 
 ### Resources
 - _3DSage_ [Make Your Own Raycaster Part 1](https://www.youtube.com/watch?v=gYRrGTC7GtA)
 - _Matt Godbold_  [Wolfenstein 3D's map renderer](https://www.youtube.com/watch?v=eOCQfxRQ2pY&t=2s)
+
+### Build/Run
+```
+stack run
+```
 
 ### Movement Controls
 - `A` : Turn left
@@ -28,3 +33,7 @@ Wolfenstein style Ray Caster. Using Haskell/SDL.
 data AdjustableAttribute =
     FPS | HeightScale | ViewAngle | TileSize
 ```
+
+### TODO
+- Fix fisheye distortion.
+- Collision detection. (Prevent walking though walls!)
