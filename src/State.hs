@@ -13,6 +13,7 @@ type Int = CInt
 data State = State
   { aa :: AdjustableAttribute
   , fps :: Int
+  , heightScale :: Int
   , viewAngle :: Int
   , tileSize :: Int
   , tmSize :: Int
@@ -27,6 +28,7 @@ state0 = s
     s = State
       { aa = FPS
       , fps = 20
+      , heightScale = 20
       , viewAngle = 60
       , tileSize = 20
       , tmSize = 15
@@ -44,29 +46,32 @@ planSize s = scale (tileSize s) (n,n) where n = tmSize s
 scale :: Int -> P2 -> P2
 scale n (x,y) = (n*x,n*y)
 
-data AdjustableAttribute = FPS | ViewAngle | TileSize
+data AdjustableAttribute = FPS | HeightScale | ViewAngle | TileSize
   deriving Show
 
 incAA :: State -> State
-incAA s@State{aa,tileSize,viewAngle,fps} =
+incAA s@State{aa,tileSize,heightScale,viewAngle,fps} =
   case aa of
     FPS -> s { fps = min 60 (fps + 1) }
+    HeightScale -> s { heightScale = heightScale + 1 }
     ViewAngle -> s { viewAngle = viewAngle + 1 }
     TileSize -> s { tileSize = tileSize + 1 }
 
 decAA :: State -> State
-decAA s@State{aa,tileSize,viewAngle,fps} =
+decAA s@State{aa,tileSize,heightScale,viewAngle,fps} =
   case aa of
     FPS -> s { fps = max 1 (fps - 1) }
+    HeightScale -> s { heightScale = max 1 (heightScale - 1) }
     ViewAngle -> s { viewAngle = max 1 (viewAngle - 1) }
     TileSize -> s { tileSize = max 1 (tileSize - 1) }
 
 selectAA :: State -> State
 selectAA s@State{aa} =
   case aa of
-    TileSize -> s { aa = ViewAngle }
-    ViewAngle -> s { aa = FPS }
-    FPS -> s { aa = TileSize }
+    FPS -> s { aa = HeightScale }
+    HeightScale -> s { aa = ViewAngle }
+    ViewAngle -> s { aa = TileSize }
+    TileSize -> s { aa = FPS }
 
 forwards,backwards,turnLeft,turnRight,strafeLeft,strafeRight :: State -> State
 

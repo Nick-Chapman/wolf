@@ -223,13 +223,17 @@ setColor r c = SDL.rendererDrawColor r $= color c
 
 color :: Colour -> V4 Word8
 color = \case
-  DarkGrey -> V4 20 20 20 x
+  DarkGrey  -> V4 20 20 20 x
   LightGrey -> V4 200 200 200 x
-  Black -> V4 0 0 0 x
-  White -> V4 x x x x
-  Red -> V4 x 0 0 x
-  Green -> V4 0 x 0 x
-  Blue -> V4 0 0 x x
-  Yellow -> V4 x x 0 x
-  Magenta -> V4 x 0 x x
-  where x = 255
+  Black     -> V4 0 0 0 x
+  White     -> V4 x x x x
+  Red       -> V4 x 0 0 x
+  Green     -> V4 0 x 0 x
+  Blue      -> V4 0 0 x x
+  Yellow    -> V4 x x 0 x
+  Magenta   -> V4 x 0 x x
+  DarkBlue  -> V4 0 0 d x
+  DarkGreen -> V4 0 d 0 x
+  where
+    x = 255
+    d = 200

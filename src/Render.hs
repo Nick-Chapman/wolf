@@ -41,7 +41,9 @@ tileAtPos s p@(x,y) = do
 add :: P2 -> P2 -> P2
 add (i,j) (x,y) = (i+x,j+y)
 
-data Colour = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey | Magenta
+data Colour
+  = Black | White | Red | Blue | Green | Yellow | DarkGrey | LightGrey | Magenta
+  | DarkGreen | DarkBlue
   deriving Show
 
 type Pix = (P2,Colour)
@@ -55,19 +57,32 @@ render s =
   ++ [ (p `add` off,c) | (p,c) <- renderWalls s ]
 
 renderWalls :: State -> [Pix]
-renderWalls s@State{px,py} = do
+renderWalls s@State{px,py,heightScale} = do
   (x,popt) <- gazeHeights s
   case popt of
     Nothing -> []
-    Just (p,side) -> do
+    Just (p@(xHit,yHit),side) -> do
       let d = sqrt (distanceSquared (px,py) p)
-      let (_,h) = canvasSize s
-      let height = min (fromIntegral h * 0.9) (fromIntegral h * 5 / d)
-      let hh = fromIntegral h / 2
-      let y1 = truncate (hh - height)
-      let y2 = truncate (hh + height)
-      let col = case side of N -> Green; S -> Green; E -> Blue; W -> Blue
-      [ ((x,y), col) | y <- [y1..y2] ]
+      let (_,hCanvas) = canvasSize s
+      let height = min (fromIntegral hCanvas * 0.9) (fromIntegral (hCanvas * heightScale) / d)
+      --let hh = fromIntegral hCanvas / 2
+
+      let fracComp f = f - fromIntegral (floor f :: Int)
+      let onNS = case side of N -> True; S -> True; E -> False; W -> False
+      let xTex = fracComp ((if onNS then xHit else yHit) / fromIntegral (tileSize s))
+      let
+        vcol y = do
+          let yTex = fromIntegral y / height
+          let texture = theTexture (xTex, yTex)
+          let green = if texture then DarkGreen else Green
+          let blue = if texture then DarkBlue else Blue
+          if onNS then green else blue
+
+      let base = truncate ((fromIntegral hCanvas - height) / 2)
+      [ ((x,y), vcol i)
+        | i <- [0..truncate height-1]
+        , let y = base + i
+        ]
 
 gazeHeights :: State -> [(Int,Maybe (Point,Side))]
 gazeHeights s = do
@@ -195,3 +210,18 @@ tilePoints s pos = do
   yo <- [1..n-2]
   let off = (xo,yo)
   pure (scale n pos `add` off)
+
+----------------------------------------------------------------------
+-- textures
+
+theTexture :: Point -> Bool
+theTexture (x,y) = do
+  assertInUnitRange "x" x $ do
+  assertInUnitRange "y" y $ do
+  let x1 :: Int = truncate (10*x) -- 0..9
+  let y1 = truncate (10*y) -- 0..9
+  (x1+y1) `mod` 2 == 0
+
+assertInUnitRange :: String -> Float -> a -> a
+assertInUnitRange tag x a =
+  if x>=0 && x < 1 then a else error (show ("assertInUnitRange",tag,x))
