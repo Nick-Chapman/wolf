@@ -127,12 +127,12 @@ keyMapping = \case
   (KeycodeDown,Pressed) -> DecAA
   (KeycodeEquals,Pressed) -> IncreaseSF
   (KeycodeMinus,Pressed) -> DecreaseSF
-  (KeycodeA,m) -> Drive TurnLeft m
+  (KeycodeA,m) -> Drive StrafeLeft m
   (KeycodeS,m) -> Drive Backwards m
-  (KeycodeD,m) -> Drive TurnRight m
+  (KeycodeD,m) -> Drive StrafeRight m
   (KeycodeW,m) -> Drive Forwards m
-  (KeycodeLeft,m) -> Drive StrafeLeft m
-  (KeycodeRight,m) -> Drive StrafeRight m
+  (KeycodeLeft,m) -> Drive TurnLeft m
+  (KeycodeRight,m) -> Drive TurnRight m
   _ -> NoAction
 
 updateKey :: KeyAction -> World -> IO World
